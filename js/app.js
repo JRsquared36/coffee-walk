@@ -11,6 +11,7 @@ import {
   buildWalkingDirectionsUrl,
 } from "./route-planning.js";
 import { createCoffeeLog } from "./coffee-log.js";
+import { cafeSummaryParts } from "./cafe-details.js";
 
 const FIRST_SEARCH_RADIUS_METERS = 800;
 const WIDER_SEARCH_RADIUS_METERS = 1500;
@@ -51,7 +52,9 @@ const walk = {
   legs: [],             // walking distance/time for each leg of the current walk
 };
 let googleLibraries;    // { map, Polyline, LatLngBounds, AdvancedMarkerElement, PinElement }
+let cafeInfoPopup;      // one shared Google InfoWindow; opening it on another café moves it there
 let drawnMarkers = [];  // removed before drawing a new walk
+let stopMarkers = [];   // stopMarkers[i] is the pin for walk.orderedStops[i]
 let drawnRouteLine = null;
 let isWaitingForMapTap = false;
 let cafeBeingCheckedIn = null;
@@ -79,7 +82,7 @@ async function startApp() {
   }
   try {
     await loadGoogleMaps(googleMapsApiKey);
-    const { Map, Polyline } = await google.maps.importLibrary("maps");
+    const { Map, Polyline, InfoWindow } = await google.maps.importLibrary("maps");
     const { LatLngBounds } = await google.maps.importLibrary("core"); // core, not maps
     const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker");
     const map = new Map(document.getElementById("map"), {
@@ -88,6 +91,8 @@ async function startApp() {
       clickableIcons: false,
     });
     googleLibraries = { map, Polyline, LatLngBounds, AdvancedMarkerElement, PinElement };
+    cafeInfoPopup = new InfoWindow();
+    cafeInfoPopup.addListener("closeclick", () => highlightStopCard(null));
     map.addListener("click", (event) => {
       if (!isWaitingForMapTap) return;
       isWaitingForMapTap = false;
@@ -220,14 +225,23 @@ function drawWalkOnMap(path, usedRealStreets) {
   drawnMarkers.forEach((marker) => (marker.map = null));
   drawnRouteLine?.setMap(null);
   drawnMarkers = [];
+  cafeInfoPopup.close();
 
   const startPin = new PinElement({ glyph: "★", background: "#2b211b", borderColor: "#2b211b", glyphColor: "#fff" });
   drawnMarkers.push(new AdvancedMarkerElement({ map, position: walk.start, content: startPin.element, title: "Start" }));
 
-  walk.orderedStops.forEach((stop, index) => {
+  stopMarkers = walk.orderedStops.map((stop, index) => {
     const pin = new PinElement({ glyph: String(index + 1), background: "#6f4e37", borderColor: "#4b3324", glyphColor: "#fff" });
-    drawnMarkers.push(new AdvancedMarkerElement({ map, position: stop.location, content: pin.element, title: stop.name }));
+    const marker = new AdvancedMarkerElement({
+      map, position: stop.location, content: pin.element, title: stop.name, gmpClickable: true,
+    });
+    // Google has been moving markers from the "click" event to "gmp-click". Listening to both is
+    // safe: opening the same popup twice just leaves it open.
+    marker.addListener?.("click", () => openCafeInfo(index));
+    marker.addEventListener?.("gmp-click", () => openCafeInfo(index));
+    return marker;
   });
+  drawnMarkers.push(...stopMarkers);
 
   // A dashed line means "not a real street route". Google draws dashes as repeated line symbols.
   const lineStyle = usedRealStreets
@@ -251,19 +265,25 @@ function renderStopList() {
   elements.stopList.replaceChildren(
     ...walk.orderedStops.map((stop, index) => {
       const item = createElement("li", "stop");
+      item.dataset.stopIndex = String(index);
       item.append(createElement("span", "stop-number", String(index + 1)));
-      item.append(createElement("span", "stop-name", stop.name)); // textContent, never innerHTML: names come from the internet
+      // A button (not plain text) so it works with a keyboard and screen readers too.
+      const nameButton = createElement("button", "stop-name", stop.name); // textContent, never innerHTML: names come from the internet
+      nameButton.type = "button";
+      nameButton.title = "Show on map";
+      nameButton.addEventListener("click", () => openCafeInfo(index, { scrollMapIntoView: true }));
+      item.append(nameButton);
 
       const fromWhere = index === 0 ? "from start" : `from stop ${index}`;
-      const ratingText = stop.rating ? ` · ${stop.rating.toFixed(1)}★ (${stop.ratingCount ?? 0})` : "";
       item.append(createElement("span", "stop-details",
-        `${formatDistance(legs[index].distanceMeters)}, ~${formatWalkingTime(legs[index].durationSeconds)} ${fromWhere}${ratingText}`));
+        `${formatDistance(legs[index].distanceMeters)}, ~${formatWalkingTime(legs[index].durationSeconds)} ${fromWhere}`));
+      const summary = cafeSummaryParts(stop);
+      if (summary.length > 0) item.append(createElement("span", "stop-details", summary.join(" · ")));
+      if (stop.address) item.append(createElement("span", "stop-details", stop.address));
+      if (stop.weeklyHours) item.append(createWeeklyHoursFoldout(stop.weeklyHours));
 
       const actions = createElement("div", "stop-actions");
-      const directionsLink = createElement("a", "", "Directions");
-      directionsLink.href = buildWalkingDirectionsUrl(stop);
-      directionsLink.target = "_blank";
-      directionsLink.rel = "noopener";
+      const directionsLink = createExternalLink("Directions", buildWalkingDirectionsUrl(stop));
       const checkInButton = createElement("button", "", "I'm here");
       checkInButton.type = "button";
       checkInButton.addEventListener("click", () => openCheckIn(stop));
@@ -282,6 +302,62 @@ function renderStopList() {
   const returnItem = createElement("li", "fine-print",
     `Back to start: ${formatDistance(returnLeg.distanceMeters)}, ~${formatWalkingTime(returnLeg.durationSeconds)}`);
   elements.stopList.append(returnItem);
+}
+
+// A native <details> fold-out: closed by default, no JavaScript needed to open and close it.
+function createWeeklyHoursFoldout(weeklyHours) {
+  const foldout = createElement("details", "weekly-hours");
+  foldout.append(createElement("summary", "", "All hours"));
+  const list = createElement("ul");
+  weeklyHours.forEach((dayLine) => list.append(createElement("li", "", dayLine)));
+  foldout.append(list);
+  return foldout;
+}
+
+function createExternalLink(text, url) {
+  const link = createElement("a", "", text);
+  link.href = url;
+  link.target = "_blank";
+  link.rel = "noopener"; // the opened page can't control this one
+  return link;
+}
+
+// ---------- Café popup on the map ----------
+
+function openCafeInfo(stopIndex, { scrollMapIntoView = false } = {}) {
+  const stop = walk.orderedStops[stopIndex];
+  const marker = stopMarkers[stopIndex];
+  if (!stop || !marker) return;
+  cafeInfoPopup.setContent(buildCafeInfoContent(stop, stopIndex));
+  cafeInfoPopup.open({ map: googleLibraries.map, anchor: marker });
+  highlightStopCard(stopIndex);
+  // On phones the map sits above the list, so tapping a card would otherwise open a popup off-screen.
+  if (scrollMapIntoView && window.matchMedia("(max-width: 799px)").matches) {
+    document.getElementById("map").scrollIntoView({ behavior: "smooth" });
+  }
+}
+
+// Built as DOM nodes rather than an HTML string, so café text can't inject markup.
+function buildCafeInfoContent(stop, stopIndex) {
+  const content = createElement("div", "cafe-popup");
+  content.append(createElement("strong", "cafe-popup-name", `${stopIndex + 1}. ${stop.name}`));
+  const summary = cafeSummaryParts(stop);
+  if (summary.length > 0) content.append(createElement("p", "", summary.join(" · ")));
+  if (stop.address) content.append(createElement("p", "cafe-popup-muted", stop.address));
+  if (!stop.weeklyHours) content.append(createElement("p", "cafe-popup-muted", "Google has no hours for this café."));
+
+  const links = createElement("p", "cafe-popup-links");
+  links.append(createExternalLink("Directions", buildWalkingDirectionsUrl(stop)));
+  if (stop.websiteUrl) links.append(createExternalLink("Website", stop.websiteUrl));
+  if (stop.googleMapsUrl) links.append(createExternalLink("Google Maps", stop.googleMapsUrl));
+  content.append(links);
+  return content;
+}
+
+function highlightStopCard(selectedStopIndex) {
+  elements.stopList.querySelectorAll(".stop").forEach((card) => {
+    card.classList.toggle("is-selected", card.dataset.stopIndex === String(selectedStopIndex));
+  });
 }
 
 function createElement(tagName, className, text) {

@@ -19,11 +19,26 @@ export function loadGoogleMaps(apiKey) {
   });
 }
 
-// Fields cost different amounts; rating is a pricier tier that a demo key may not include.
-const DETAILED_PLACE_FIELDS = ["id", "displayName", "location", "rating", "userRatingCount", "businessStatus"];
+// The fields list sets the price of each search (see CLAUDE.md). Everything here is shown to the user:
+// rating, price, hours and website appear on the stop cards and map popups.
+const DETAILED_PLACE_FIELDS = [
+  "id",
+  "displayName",
+  "location",
+  "rating",
+  "userRatingCount",
+  "businessStatus",
+  "formattedAddress",
+  "priceLevel",
+  "regularOpeningHours",
+  "utcOffsetMinutes", // needed by isOpen() to work out "open now" in the café's time zone
+  "websiteURI",
+  "googleMapsURI",
+];
 const BASIC_PLACE_FIELDS = ["id", "displayName", "location"];
 
-// Returns cafés as plain objects: { placeId, name, location: {lat, lng}, rating, ratingCount }.
+// Returns cafés as plain objects: { placeId, name, location: {lat, lng}, rating, ratingCount,
+// address, priceLevel, weeklyHours, isOpenNow, websiteUrl, googleMapsUrl }. Any detail may be null.
 export async function searchNearbyCafes(center, radiusMeters) {
   const { Place } = await google.maps.importLibrary("places");
   const locationRestriction = { center, radius: radiusMeters };
@@ -49,15 +64,35 @@ export async function searchNearbyCafes(center, radiusMeters) {
       throw new Error(`${detailedSearchError.message} (basic retry: ${basicSearchError.message})`);
     }
   }
-  return places
-    .filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL")
-    .map((place) => ({
-      placeId: place.id,
-      name: place.displayName ?? "Unnamed café",
-      location: { lat: place.location.lat(), lng: place.location.lng() },
-      rating: place.rating ?? null,
-      ratingCount: place.userRatingCount ?? null,
-    }));
+  const openPlaces = places.filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL");
+  return Promise.all(openPlaces.map(toCafe));
+}
+
+async function toCafe(place) {
+  return {
+    placeId: place.id,
+    name: place.displayName ?? "Unnamed café",
+    location: { lat: place.location.lat(), lng: place.location.lng() },
+    rating: place.rating ?? null,
+    ratingCount: place.userRatingCount ?? null,
+    address: place.formattedAddress ?? null,
+    priceLevel: place.priceLevel ?? null,
+    weeklyHours: place.regularOpeningHours?.weekdayDescriptions ?? null,
+    isOpenNow: await isOpenNowOrUnknown(place),
+    websiteUrl: place.websiteURI ?? null,
+    googleMapsUrl: place.googleMapsURI ?? null,
+  };
+}
+
+// isOpen() resolves to true/false, or undefined when Google has no hours. It throws if the hours
+// fields weren't fetched (the basic-fields retry), so treat any failure as "unknown".
+async function isOpenNowOrUnknown(place) {
+  if (!place.regularOpeningHours || typeof place.isOpen !== "function") return null;
+  try {
+    return (await place.isOpen()) ?? null;
+  } catch {
+    return null;
+  }
 }
 
 const ROUTES_ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
