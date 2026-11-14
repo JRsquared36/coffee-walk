@@ -33,7 +33,26 @@ export function todaysHours(weeklyHours, date = new Date()) {
   return weeklyHours[mondayFirstIndex].replace(/^[^:]+:\s*/, "");
 }
 
-// The one-line summary shown on each stop card and at the top of the map popup.
+// Rating and price, e.g. ["4.7★ (312)", "$$"]. Shown as one line on the stop card.
+export function cafeMetaParts(cafe) {
+  return [formatRating(cafe.rating, cafe.ratingCount), formatPriceLevel(cafe.priceLevel)].filter(Boolean);
+}
+
+// Small coloured labels for a café. `tone` matches a badge style in css/style.css.
+export function cafeBadges(cafe) {
+  const badges = [];
+  if (cafe.typeLabel) badges.push({ label: cafe.typeLabel, tone: "neutral" }); // shows why the place qualified
+  if (cafe.isOpenNow === true) badges.push({ label: "Open now", tone: "success" });
+  if (cafe.isOpenNow === false) badges.push({ label: "Closed now", tone: "danger" });
+  return badges;
+}
+
+export function todaysHoursLabel(cafe, date = new Date()) {
+  const hoursToday = todaysHours(cafe.weeklyHours, date);
+  return hoursToday ? `Today ${hoursToday}` : null;
+}
+
+// The one-line text summary used in the map popup.
 export function cafeSummaryParts(cafe, date = new Date()) {
   const hoursToday = todaysHours(cafe.weeklyHours, date);
   return [

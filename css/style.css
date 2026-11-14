@@ -1,114 +1,204 @@
-:root {
-  --coffee: #6f4e37;
-  --coffee-dark: #4b3324;
-  --cream: #faf6f1;
-  --ink: #2b211b;
-  --muted: #7a6a5e;
-  --line: #e6ddd3;
-  --error: #b3261e;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  color: var(--ink);
-  background: var(--cream);
+/* Layout and components. Every colour, size and font comes from css/tokens.css. */
+
+/* ---------- Base ---------- */
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  font: var(--text-body);
+  color: var(--color-text-primary);
+  background: var(--color-bg-page);
+}
+h1, h2, p { margin: 0; }
+h1 { font: var(--text-display); }
+h2 { font: var(--text-title); }
+a { color: var(--color-text-brand); }
+/* Form controls don't inherit fonts by default. 16px also stops iPhones zooming in when you tap a field. */
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
+
+.text-secondary { color: var(--color-text-secondary); }
+.caption { font: var(--text-caption); color: var(--color-text-secondary); }
+.label { font: var(--text-label); }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap;
 }
 
-* { box-sizing: border-box; }
-body { margin: 0; }
-h1, h2 { margin: 0; }
-h1 { font-size: 1.6rem; color: var(--coffee-dark); }
-h2 { font-size: 1.1rem; }
-
+/* ---------- Layout ---------- */
 /* Phone: map on top, panel below. */
 .layout { display: flex; flex-direction: column-reverse; min-height: 100vh; }
 .map { height: 55vh; width: 100%; }
-.panel { padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.panel { padding: var(--spacing-md); display: flex; flex-direction: column; gap: var(--spacing-md); }
 
 /* Wider screens: panel on the left, map fills the rest. */
 @media (min-width: 800px) {
   .layout { flex-direction: row; height: 100vh; }
-  .panel { width: 380px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--line); }
+  .panel { width: 400px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--color-border-default); }
   .map { height: 100%; flex: 1; }
 }
 
-.tagline, .fine-print { color: var(--muted); margin: 4px 0 0; font-size: 0.9rem; }
-.status:empty, .error:empty { display: none; }
-.status { margin: 0; padding: 10px 12px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
-.error { color: var(--error); margin: 0; }
+.intro { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
+.controls { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.walk-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
+.walk-titles { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
 
-.controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-button, select, textarea {
-  font: inherit;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: #fff;
-  color: var(--ink);
-  padding: 8px 12px;
+/* ---------- Button ---------- */
+.button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--spacing-xs);
+  min-height: var(--button-height);
+  padding: var(--spacing-sm) var(--spacing-lg);
+  border: 1.5px solid transparent;
+  border-radius: var(--radius-full);
+  font: var(--text-body-strong);
+  text-decoration: none;
+  white-space: nowrap; flex-shrink: 0;   /* a label never wraps or gets squeezed */
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
-button { cursor: pointer; }
-button:disabled { opacity: 0.5; cursor: default; }
-button.primary { background: var(--coffee); border-color: var(--coffee); color: #fff; }
-button.primary:hover:not(:disabled) { background: var(--coffee-dark); }
+.button:disabled { opacity: 0.4; cursor: default; }
+.button--primary { background: var(--color-bg-brand); color: var(--color-text-on-brand); }
+.button--primary:active:not(:disabled) { background: var(--color-bg-brand-pressed); }
+.button--secondary { background: var(--color-bg-surface); color: var(--color-text-brand); border-color: var(--color-border-strong); }
+.button--quiet { background: transparent; color: var(--color-text-brand); }
+.button--secondary:active:not(:disabled), .button--quiet:active:not(:disabled) { background: var(--color-bg-sunken); }
+.button--block { display: flex; width: 100%; }
+/* For secondary actions inside cards. Still a full-size tap target. */
+.button--small { min-height: var(--tap-target-min); padding: var(--spacing-xs) var(--spacing-md); font: var(--text-label); }
 
-.walk-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
-.walk-summary p { margin: 0; flex: 1; color: var(--muted); }
+/* ---------- Chip (a radio or checkbox that looks like a pill) ---------- */
+.chip-group { display: flex; align-items: center; gap: var(--spacing-xs); flex-wrap: wrap; }
+.chip { position: relative; display: inline-flex; }
+.chip input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.chip span {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: var(--tap-target-min); min-width: var(--tap-target-min);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-sunken);
+  font: var(--text-label);
+}
+.chip input:checked + span { background: var(--color-bg-brand); color: var(--color-text-on-brand); }
+.chip input:focus-visible + span { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
 
-.stop-list { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 8px; }
+/* ---------- Badge ---------- */
+.badge-row { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; }
+.badge {
+  display: inline-flex; align-items: center;
+  padding: var(--spacing-2xs) var(--spacing-xs);
+  border-radius: var(--radius-full);
+  font: var(--text-small);
+  background: var(--color-bg-sunken); color: var(--color-text-secondary);   /* neutral */
+}
+.badge--success { background: var(--color-bg-success-subtle); color: var(--color-text-success); }
+.badge--danger { background: var(--color-bg-danger-subtle); color: var(--color-text-danger); }
+.badge--accent { background: var(--color-bg-accent-subtle); color: var(--color-text-primary); }
+
+/* ---------- Notices ---------- */
+.status:empty, .error:empty { display: none; }
+.status {
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-sunken);
+  border-radius: var(--radius-md);
+  font: var(--text-caption); color: var(--color-text-primary);
+}
+.error { font: var(--text-caption); color: var(--color-text-danger); }
+
+/* ---------- Stop card ---------- */
+.stop-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .stop {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
-  display: grid;
-  grid-template-columns: 28px 1fr;
-  gap: 2px 10px;
+  display: grid; grid-template-columns: 32px 1fr; gap: var(--spacing-2xs) var(--spacing-sm);
+  padding: var(--spacing-md);
+  background: var(--color-bg-surface);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
 }
 /* Everything except the number badge goes in the second column, one line per row. */
 .stop > :not(.stop-number) { grid-column: 2; }
+.stop.is-selected { background: var(--color-bg-accent-subtle); border-color: var(--color-border-strong); box-shadow: 0 0 0 1px var(--color-border-strong), var(--shadow-card); }
 .stop-number {
-  width: 28px; height: 28px;
-  border-radius: 50%;
-  background: var(--coffee);
-  color: #fff;
+  width: 32px; height: 32px;
   display: grid; place-items: center;
-  font-weight: 600;
+  border-radius: var(--radius-full);
+  background: var(--color-bg-brand); color: var(--color-text-on-brand);
+  font: var(--text-label);
 }
 .stop-name {
-  font-weight: 600;
+  padding: 0; border: none; background: none; cursor: pointer;
   text-align: left;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--ink);
-  text-decoration: underline dotted var(--muted);
-  text-underline-offset: 3px;
+  font: var(--text-heading); color: var(--color-text-primary);
 }
-.stop.is-selected { border-color: var(--coffee); box-shadow: 0 0 0 1px var(--coffee); }
-.weekly-hours { font-size: 0.85rem; color: var(--muted); }
-.weekly-hours summary { cursor: pointer; }
-.weekly-hours ul { margin: 4px 0 0; padding-left: 18px; }
+.stop-details { font: var(--text-caption); color: var(--color-text-secondary); }
+.stop-actions { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; align-items: center; margin-top: var(--spacing-xs); }
+.weekly-hours { font: var(--text-caption); color: var(--color-text-secondary); }
+.weekly-hours summary { cursor: pointer; padding: var(--spacing-2xs) 0; }
+.weekly-hours ul { margin: var(--spacing-2xs) 0 0; padding-left: var(--spacing-md); }
 
-/* Google's InfoWindow sits on a white card, so these colours stay fixed. */
-.cafe-popup { max-width: 240px; color: #2b211b; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-.cafe-popup p { margin: 4px 0 0; }
-.cafe-popup-muted { color: #7a6a5e; font-size: 0.85rem; }
-.cafe-popup-links { display: flex; gap: 10px; flex-wrap: wrap; }
-.cafe-popup-links a { color: #6f4e37; }
-.stop-details { color: var(--muted); font-size: 0.9rem; }
-.stop-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; align-items: center; }
-.stop-actions a { color: var(--coffee); }
-.stop-actions button { padding: 4px 10px; font-size: 0.9rem; }
-.logged-badge { font-size: 0.85rem; color: var(--coffee-dark); }
+/* ---------- Map pins (our own elements inside Google's markers) ---------- */
+.map-pin {
+  width: 40px; height: 40px;
+  display: grid; place-items: center;
+  /* Google anchors a marker's bottom edge on the location; shift down half so the circle's centre sits on it. */
+  transform: translateY(50%);
+  border: 2px solid var(--color-bg-surface);
+  border-radius: var(--radius-full);
+  background: var(--color-bg-brand); color: var(--color-text-on-brand);
+  box-shadow: var(--shadow-pin);
+  font: var(--text-body-strong);
+  cursor: pointer;
+}
+.map-pin--start { background: var(--color-bg-accent); cursor: default; }
+.map-pin--start::after { content: ""; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--color-bg-surface); }
+.map-pin.is-selected { width: 48px; height: 48px; border-width: 3px; background: var(--color-bg-brand-pressed); font: var(--text-heading); }
 
-.log-list { list-style: none; padding: 0; margin: 8px 0 0; display: flex; flex-direction: column; gap: 8px; }
-.log-entry { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
-.log-entry-header { display: flex; justify-content: space-between; gap: 8px; }
-.log-entry p { margin: 4px 0 0; }
-.log-entry .remove-entry-button { border: none; background: none; color: var(--muted); padding: 0; font-size: 0.85rem; }
+/* Google's popup (InfoWindow) has its own white card. */
+.cafe-popup { max-width: 240px; font: var(--text-caption); color: var(--color-text-primary); }
+.cafe-popup-name { font: var(--text-label); }
+.cafe-popup p { margin: var(--spacing-2xs) 0 0; }
+.cafe-popup-muted { color: var(--color-text-secondary); }
+.cafe-popup-links { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
 
-dialog { border: none; border-radius: 12px; padding: 20px; width: min(420px, calc(100vw - 32px)); }
-dialog::backdrop { background: rgb(0 0 0 / 0.4); }
-dialog form { display: flex; flex-direction: column; gap: 10px; }
-.rating-picker { border: none; padding: 0; margin: 0; display: flex; gap: 10px; flex-wrap: wrap; }
-.rating-picker legend { margin-bottom: 4px; }
-textarea { width: 100%; resize: vertical; }
-.dialog-buttons { display: flex; justify-content: flex-end; gap: 8px; }
+/* ---------- Coffee log ---------- */
+.log-section { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.log-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
+.log-entry { border-bottom: 1px solid var(--color-border-default); padding-bottom: var(--spacing-sm); }
+.log-entry-header { display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-xs); font: var(--text-body-strong); }
+.log-entry-stars { color: var(--color-bg-accent); }
+.log-entry p { margin-top: var(--spacing-2xs); }
+
+/* ---------- Check-in dialog ---------- */
+dialog {
+  width: min(420px, calc(100vw - 2 * var(--spacing-md)));
+  padding: var(--spacing-lg);
+  border: none; border-radius: var(--radius-xl);
+  background: var(--color-bg-surface); color: var(--color-text-primary);
+  box-shadow: var(--shadow-sheet);
+}
+dialog::backdrop { background: var(--color-scrim); }
+dialog form { display: flex; flex-direction: column; gap: var(--spacing-md); }
+.field { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.dialog-buttons { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+
+/* Star rating: five radio buttons drawn as stars. */
+.star-rating { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--spacing-2xs); }
+.star-rating legend { padding: 0; margin-bottom: var(--spacing-2xs); }
+.stars { display: flex; gap: var(--spacing-2xs); }
+.star { position: relative; width: var(--tap-target-min); height: var(--tap-target-min); display: grid; place-items: center; }
+.star input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.star-glyph { font-size: 2rem; line-height: 1; color: var(--color-border-default); }
+/* Fill the chosen star and every star before it. */
+.star:has(input:checked) .star-glyph,
+.star:has(~ .star input:checked) .star-glyph { color: var(--color-bg-accent); }
+.star:has(input:focus-visible) { outline: 2px solid var(--color-border-strong); border-radius: var(--radius-sm); }
+
+/* ---------- Text field ---------- */
+.text-field {
+  width: 100%; min-height: 96px; resize: vertical;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--color-border-default); border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  font: var(--text-body);
+}
+.text-field::placeholder { color: var(--color-text-secondary); }
+.text-field:focus { outline: none; border-color: var(--color-border-strong); box-shadow: 0 0 0 1px var(--color-border-strong); }

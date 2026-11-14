@@ -11,7 +11,7 @@ import {
   buildWalkingDirectionsUrl,
 } from "./route-planning.js";
 import { createCoffeeLog } from "./coffee-log.js";
-import { cafeSummaryParts } from "./cafe-details.js";
+import { cafeSummaryParts, cafeMetaParts, cafeBadges, todaysHoursLabel } from "./cafe-details.js";
 import { selectCoffeeFirstCafes, topCandidatePool, MINIMUM_RATING, MINIMUM_REVIEW_COUNT } from "./cafe-selection.js";
 
 const FIRST_SEARCH_RADIUS_METERS = 800;
@@ -19,7 +19,6 @@ const WIDER_SEARCH_RADIUS_METERS = 1500;
 const DEFAULT_MAP_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 }; // whole US until we know where you are
 
 const elements = {
-  stopCount: document.getElementById("stop-count"),
   startWalkButton: document.getElementById("start-walk-button"),
   newRouteButton: document.getElementById("new-route-button"),
   statusMessage: document.getElementById("status-message"),
@@ -52,7 +51,7 @@ const walk = {
   orderedStops: [],
   legs: [],             // walking distance/time for each leg of the current walk
 };
-let googleLibraries;    // { map, Polyline, LatLngBounds, AdvancedMarkerElement, PinElement }
+let googleLibraries;    // { map, Polyline, LatLngBounds, AdvancedMarkerElement }
 let cafeInfoPopup;      // one shared Google InfoWindow; opening it on another café moves it there
 let drawnMarkers = [];  // removed before drawing a new walk
 let stopMarkers = [];   // stopMarkers[i] is the pin for walk.orderedStops[i]
@@ -85,13 +84,13 @@ async function startApp() {
     await loadGoogleMaps(googleMapsApiKey);
     const { Map, Polyline, InfoWindow } = await google.maps.importLibrary("maps");
     const { LatLngBounds } = await google.maps.importLibrary("core"); // core, not maps
-    const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker");
+    const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
     const map = new Map(document.getElementById("map"), {
       ...DEFAULT_MAP_VIEW,
       mapId: "DEMO_MAP_ID", // advanced markers need a map ID; Google provides this one for testing
       clickableIcons: false,
     });
-    googleLibraries = { map, Polyline, LatLngBounds, AdvancedMarkerElement, PinElement };
+    googleLibraries = { map, Polyline, LatLngBounds, AdvancedMarkerElement };
     cafeInfoPopup = new InfoWindow();
     cafeInfoPopup.addListener("closeclick", () => highlightStopCard(null));
     map.addListener("click", (event) => {
@@ -226,7 +225,13 @@ async function buildAndShowWalk() {
 }
 
 function selectedStopCount() {
-  return Number(elements.stopCount.value);
+  return Number(document.querySelector('input[name="stop-count"]:checked').value);
+}
+
+// Reads a design token from css/tokens.css, for the few places (Google's route line) that need a
+// colour in JavaScript. Keeps tokens.css the only place colours are defined.
+function designToken(tokenName) {
+  return getComputedStyle(document.documentElement).getPropertyValue(tokenName).trim();
 }
 
 function setButtonsBusy(isBusy) {
@@ -237,19 +242,20 @@ function setButtonsBusy(isBusy) {
 // ---------- Map drawing ----------
 
 function drawWalkOnMap(path, usedRealStreets) {
-  const { map, Polyline, LatLngBounds, AdvancedMarkerElement, PinElement } = googleLibraries;
+  const { map, Polyline, LatLngBounds, AdvancedMarkerElement } = googleLibraries;
   drawnMarkers.forEach((marker) => (marker.map = null));
   drawnRouteLine?.setMap(null);
   drawnMarkers = [];
   cafeInfoPopup.close();
 
-  const startPin = new PinElement({ glyph: "★", background: "#2b211b", borderColor: "#2b211b", glyphColor: "#fff" });
-  drawnMarkers.push(new AdvancedMarkerElement({ map, position: walk.start, content: startPin.element, title: "Start" }));
+  // Pins are our own elements (styled by .map-pin in css/style.css) placed inside Google's markers.
+  const startPin = createElement("div", "map-pin map-pin--start");
+  drawnMarkers.push(new AdvancedMarkerElement({ map, position: walk.start, content: startPin, title: "Start" }));
 
   stopMarkers = walk.orderedStops.map((stop, index) => {
-    const pin = new PinElement({ glyph: String(index + 1), background: "#6f4e37", borderColor: "#4b3324", glyphColor: "#fff" });
+    const pin = createElement("div", "map-pin", String(index + 1));
     const marker = new AdvancedMarkerElement({
-      map, position: stop.location, content: pin.element, title: stop.name, gmpClickable: true,
+      map, position: stop.location, content: pin, title: stop.name, gmpClickable: true,
     });
     // Google has been moving markers from the "click" event to "gmp-click". Listening to both is
     // safe: opening the same popup twice just leaves it open.
@@ -260,11 +266,12 @@ function drawWalkOnMap(path, usedRealStreets) {
   drawnMarkers.push(...stopMarkers);
 
   // A dashed line means "not a real street route". Google draws dashes as repeated line symbols.
+  const routeColor = designToken("--color-route");
   const lineStyle = usedRealStreets
-    ? { strokeColor: "#6f4e37", strokeOpacity: 0.9, strokeWeight: 5 }
+    ? { strokeColor: routeColor, strokeOpacity: 0.9, strokeWeight: 5 }
     : {
         strokeOpacity: 0,
-        icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.9, strokeColor: "#6f4e37", scale: 3 }, offset: "0", repeat: "14px" }],
+        icons: [{ icon: { path: "M 0,-1 0,1", strokeOpacity: 0.9, strokeColor: routeColor, scale: 3 }, offset: "0", repeat: "14px" }],
       };
   drawnRouteLine = new Polyline({ map, path, ...lineStyle });
 
@@ -290,34 +297,44 @@ function renderStopList() {
       nameButton.addEventListener("click", () => openCafeInfo(index, { scrollMapIntoView: true }));
       item.append(nameButton);
 
-      const fromWhere = index === 0 ? "from start" : `from stop ${index}`;
-      item.append(createElement("span", "stop-details",
-        `${formatDistance(legs[index].distanceMeters)}, ~${formatWalkingTime(legs[index].durationSeconds)} ${fromWhere}`));
-      const summary = cafeSummaryParts(stop);
-      if (summary.length > 0) item.append(createElement("span", "stop-details", summary.join(" · ")));
+      const meta = cafeMetaParts(stop);
+      if (meta.length > 0) item.append(createElement("span", "stop-details", meta.join(" · ")));
+
+      const badges = cafeBadges(stop);
+      const pastVisits = coffeeLog.entriesForPlace(stop.placeId);
+      if (pastVisits.length > 0) badges.push({ label: `Logged ${pastVisits.length}× · last ${pastVisits[0].rating}★`, tone: "accent" });
+      if (badges.length > 0) item.append(createBadgeRow(badges));
+
+      const hoursToday = todaysHoursLabel(stop);
+      if (hoursToday) item.append(createElement("span", "stop-details", hoursToday));
       if (stop.address) item.append(createElement("span", "stop-details", stop.address));
       if (stop.weeklyHours) item.append(createWeeklyHoursFoldout(stop.weeklyHours));
+      const fromWhere = index === 0 ? "from start" : `from stop ${index}`;
+      item.append(createElement("span", "stop-details",
+        `${formatDistance(legs[index].distanceMeters)} · ${formatWalkingTime(legs[index].durationSeconds)} ${fromWhere}`));
 
       const actions = createElement("div", "stop-actions");
-      const directionsLink = createExternalLink("Directions", buildWalkingDirectionsUrl(stop));
-      const checkInButton = createElement("button", "", "I'm here");
+      const checkInButton = createElement("button", "button button--secondary button--small", "I'm here");
       checkInButton.type = "button";
       checkInButton.addEventListener("click", () => openCheckIn(stop));
-      actions.append(directionsLink, checkInButton);
-
-      const pastVisits = coffeeLog.entriesForPlace(stop.placeId);
-      if (pastVisits.length > 0) {
-        actions.append(createElement("span", "logged-badge", `Logged ${pastVisits.length}× · last ${pastVisits[0].rating}★`));
-      }
+      const directionsLink = createExternalLink("Directions", buildWalkingDirectionsUrl(stop));
+      directionsLink.className = "button button--quiet button--small";
+      actions.append(checkInButton, directionsLink);
       item.append(actions);
       return item;
     }),
   );
 
   const returnLeg = legs[legs.length - 1];
-  const returnItem = createElement("li", "fine-print",
-    `Back to start: ${formatDistance(returnLeg.distanceMeters)}, ~${formatWalkingTime(returnLeg.durationSeconds)}`);
+  const returnItem = createElement("li", "caption",
+    `Back to start: ${formatDistance(returnLeg.distanceMeters)} · ${formatWalkingTime(returnLeg.durationSeconds)}`);
   elements.stopList.append(returnItem);
+}
+
+function createBadgeRow(badges) {
+  const row = createElement("div", "badge-row");
+  badges.forEach(({ label, tone }) => row.append(createElement("span", `badge badge--${tone}`, label)));
+  return row;
 }
 
 // A native <details> fold-out: closed by default, no JavaScript needed to open and close it.
@@ -370,10 +387,12 @@ function buildCafeInfoContent(stop, stopIndex) {
   return content;
 }
 
+// Highlights the chosen café's card and enlarges its pin; pass null to clear.
 function highlightStopCard(selectedStopIndex) {
   elements.stopList.querySelectorAll(".stop").forEach((card) => {
     card.classList.toggle("is-selected", card.dataset.stopIndex === String(selectedStopIndex));
   });
+  stopMarkers.forEach((marker, index) => marker.content?.classList.toggle("is-selected", index === selectedStopIndex));
 }
 
 function createElement(tagName, className, text) {
@@ -439,8 +458,12 @@ function renderCoffeeLog() {
     ...entries.map((entry) => {
       const item = createElement("li", "log-entry");
       const header = createElement("div", "log-entry-header");
-      header.append(createElement("strong", "", `${entry.cafeName} · ${"★".repeat(entry.rating)}`));
-      const removeButton = createElement("button", "remove-entry-button", "Remove");
+      const title = createElement("span", "", `${entry.cafeName} `);
+      const stars = createElement("span", "log-entry-stars", "★".repeat(entry.rating));
+      stars.setAttribute("aria-label", `${entry.rating} out of 5`);
+      title.append(stars);
+      header.append(title);
+      const removeButton = createElement("button", "button button--quiet button--small", "Remove");
       removeButton.type = "button";
       removeButton.addEventListener("click", () => {
         coffeeLog.removeEntry(entry.entryId);
@@ -449,7 +472,7 @@ function renderCoffeeLog() {
       });
       header.append(removeButton);
       item.append(header);
-      item.append(createElement("p", "fine-print", new Date(entry.visitedAt).toLocaleDateString()));
+      item.append(createElement("p", "caption", new Date(entry.visitedAt).toLocaleDateString()));
       if (entry.note) item.append(createElement("p", "", entry.note));
       return item;
     }),

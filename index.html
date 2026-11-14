@@ -4,42 +4,49 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Coffee Walk</title>
+  <!-- Fonts from Google Fonts. If they fail to load, tokens.css falls back to fonts already on the device. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Inter:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="css/tokens.css">
   <link rel="stylesheet" href="css/style.css">
   <script type="module" src="js/app.js"></script>
 </head>
 <body>
   <main class="layout">
     <section class="panel" aria-label="Coffee walk planner">
-      <header>
+      <header class="intro">
         <h1>Coffee Walk</h1>
-        <p class="tagline">A walking loop through cafés near you.</p>
+        <p class="text-secondary">A walking loop through coffee shops near you.</p>
       </header>
 
       <div class="controls">
-        <label for="stop-count">Stops</label>
-        <select id="stop-count">
-          <option value="3">3</option>
-          <option value="4" selected>4</option>
-          <option value="5">5</option>
-        </select>
-        <button id="start-walk-button" type="button" class="primary">Start a coffee walk</button>
+        <div class="chip-group" role="radiogroup" aria-labelledby="stop-count-label">
+          <span id="stop-count-label" class="label">Stops</span>
+          <label class="chip"><input type="radio" name="stop-count" value="3"><span>3</span></label>
+          <label class="chip"><input type="radio" name="stop-count" value="4" checked><span>4</span></label>
+          <label class="chip"><input type="radio" name="stop-count" value="5"><span>5</span></label>
+        </div>
+        <button id="start-walk-button" type="button" class="button button--primary button--block">Start a coffee walk</button>
       </div>
 
       <p id="status-message" class="status" role="status" aria-live="polite"></p>
 
-      <section id="walk-section" hidden>
-        <div class="walk-summary">
-          <h2>Your walk</h2>
-          <p id="walk-totals"></p>
-          <button id="new-route-button" type="button">New route</button>
+      <section id="walk-section" class="controls" hidden>
+        <div class="walk-header">
+          <div class="walk-titles">
+            <h2>Your walk</h2>
+            <p id="walk-totals" class="caption"></p>
+          </div>
+          <button id="new-route-button" type="button" class="button button--secondary">New route</button>
         </div>
         <ol id="stop-list" class="stop-list"></ol>
-        <p id="route-source-note" class="fine-print"></p>
+        <p id="route-source-note" class="caption"></p>
       </section>
 
       <section class="log-section">
         <h2>My coffee log</h2>
-        <p id="empty-log-message" class="fine-print">No check-ins yet. Tap "I'm here" at a stop to log it.</p>
+        <p id="empty-log-message" class="caption">No check-ins yet. Tap "I'm here" at a stop to log it.</p>
         <ul id="log-list" class="log-list"></ul>
       </section>
     </section>
@@ -50,20 +57,24 @@
   <dialog id="check-in-dialog">
     <form id="check-in-form" method="dialog">
       <h2 id="check-in-cafe-name"></h2>
-      <fieldset class="rating-picker">
-        <legend>Rating</legend>
-        <label><input type="radio" name="rating" value="1" required> 1★</label>
-        <label><input type="radio" name="rating" value="2"> 2★</label>
-        <label><input type="radio" name="rating" value="3"> 3★</label>
-        <label><input type="radio" name="rating" value="4"> 4★</label>
-        <label><input type="radio" name="rating" value="5"> 5★</label>
+      <fieldset class="star-rating">
+        <legend class="label">Your rating</legend>
+        <div class="stars">
+          <label class="star"><input type="radio" name="rating" value="1" required><span class="star-glyph" aria-hidden="true">★</span><span class="visually-hidden">1 star</span></label>
+          <label class="star"><input type="radio" name="rating" value="2"><span class="star-glyph" aria-hidden="true">★</span><span class="visually-hidden">2 stars</span></label>
+          <label class="star"><input type="radio" name="rating" value="3"><span class="star-glyph" aria-hidden="true">★</span><span class="visually-hidden">3 stars</span></label>
+          <label class="star"><input type="radio" name="rating" value="4"><span class="star-glyph" aria-hidden="true">★</span><span class="visually-hidden">4 stars</span></label>
+          <label class="star"><input type="radio" name="rating" value="5"><span class="star-glyph" aria-hidden="true">★</span><span class="visually-hidden">5 stars</span></label>
+        </div>
       </fieldset>
-      <label for="check-in-note">Note (optional)</label>
-      <textarea id="check-in-note" maxlength="500" rows="3" placeholder="Oat flat white, great window seat"></textarea>
+      <div class="field">
+        <label for="check-in-note" class="label">Note (optional)</label>
+        <textarea id="check-in-note" class="text-field" maxlength="500" rows="3" placeholder="Oat flat white, great window seat"></textarea>
+      </div>
       <p id="check-in-error" class="error" role="alert"></p>
       <div class="dialog-buttons">
-        <button type="button" id="cancel-check-in-button">Cancel</button>
-        <button type="submit" id="save-check-in-button" class="primary">Check in</button>
+        <button type="submit" id="save-check-in-button" class="button button--primary button--block">Check in</button>
+        <button type="button" id="cancel-check-in-button" class="button button--quiet button--block">Cancel</button>
       </div>
     </form>
   </dialog>

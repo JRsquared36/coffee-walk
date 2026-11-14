@@ -1,6 +1,15 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { formatPriceLevel, formatRating, formatOpenNow, todaysHours, cafeSummaryParts } from "../js/cafe-details.js";
+import {
+  formatPriceLevel,
+  formatRating,
+  formatOpenNow,
+  todaysHours,
+  cafeSummaryParts,
+  cafeMetaParts,
+  cafeBadges,
+  todaysHoursLabel,
+} from "../js/cafe-details.js";
 
 const WEEK = [
   "Monday: 7:00 AM – 5:00 PM",
@@ -53,4 +62,23 @@ test("summary skips whatever Google didn't provide", () => {
   assert.deepEqual(cafeSummaryParts(fullCafe, MONDAY), ["4.7★ (88)", "$", "Open now", "Today 7:00 AM – 5:00 PM"]);
   const bareCafe = { rating: null, priceLevel: null, isOpenNow: null, weeklyHours: null };
   assert.deepEqual(cafeSummaryParts(bareCafe, MONDAY), []);
+});
+
+test("meta line is rating and price only", () => {
+  assert.deepEqual(cafeMetaParts({ rating: 4.7, ratingCount: 88, priceLevel: "MODERATE" }), ["4.7★ (88)", "$$"]);
+  assert.deepEqual(cafeMetaParts({ rating: null, priceLevel: null }), []);
+});
+
+test("badges: place type, then open or closed; nothing when unknown", () => {
+  assert.deepEqual(cafeBadges({ typeLabel: "Coffee shop", isOpenNow: true }), [
+    { label: "Coffee shop", tone: "neutral" },
+    { label: "Open now", tone: "success" },
+  ]);
+  assert.deepEqual(cafeBadges({ typeLabel: null, isOpenNow: false }), [{ label: "Closed now", tone: "danger" }]);
+  assert.deepEqual(cafeBadges({ typeLabel: null, isOpenNow: null }), []);
+});
+
+test("today's hours label", () => {
+  assert.equal(todaysHoursLabel({ weeklyHours: WEEK }, MONDAY), "Today 7:00 AM – 5:00 PM");
+  assert.equal(todaysHoursLabel({ weeklyHours: null }, MONDAY), null);
 });

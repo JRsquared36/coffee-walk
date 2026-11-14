@@ -1,0 +1,82 @@
+/* Design tokens: the single source of colours, type, spacing, corners and shadows.
+   They mirror the variables in the Figma file "Coffee Walk — Design System"
+   (Figma `color/bg/brand` = CSS `--color-bg-brand`), so design and code share names.
+
+   Rule: components use the SEMANTIC tokens (--color-bg-brand), never the primitives
+   (--coffee-600) and never raw values. Then a rebrand or dark mode is a change here only. */
+
+:root {
+  /* ---- Primitives: the raw palette. Don't use these directly in components. ---- */
+  --espresso-900: #2b1d14;
+  --espresso-700: #4b3324;
+  --coffee-600: #6f4e37;
+  --latte-600: #75655a;
+  --caramel-400: #d69a5c;
+  --caramel-100: #f6e6d3;
+  --crema-100: #f3eadf;
+  --cream-50: #fbf7f2;
+  --white: #ffffff;
+  --milk-200: #e7ddd2;
+  --sage-700: #3f6b4b;
+  --sage-100: #e3efe5;
+  --berry-700: #a3322a;
+  --berry-100: #f7e1de;
+
+  /* ---- Semantic colours: named by job. Every text/background pair below is at least 4.5:1. ---- */
+  --color-bg-page: var(--cream-50);            /* behind everything */
+  --color-bg-surface: var(--white);            /* cards, sheets, dialogs */
+  --color-bg-sunken: var(--crema-100);         /* chips, notices, grouped areas */
+  --color-bg-brand: var(--coffee-600);         /* primary buttons, selected chips, stop numbers */
+  --color-bg-brand-pressed: var(--espresso-700);
+  --color-bg-accent: var(--caramel-400);       /* start pin, filled stars */
+  --color-bg-accent-subtle: var(--caramel-100);/* selected card */
+  --color-bg-success-subtle: var(--sage-100);  /* "Open now" badge */
+  --color-bg-danger-subtle: var(--berry-100);  /* "Closed now" badge, error notices */
+  --color-text-primary: var(--espresso-900);
+  --color-text-secondary: var(--latte-600);
+  --color-text-on-brand: var(--white);
+  --color-text-brand: var(--coffee-600);       /* links, quiet buttons */
+  --color-text-success: var(--sage-700);
+  --color-text-danger: var(--berry-700);
+  --color-border-default: var(--milk-200);
+  --color-border-strong: var(--coffee-600);    /* selected card, focused input */
+  --color-route: var(--coffee-600);            /* walking route line on the map */
+  --color-scrim: rgb(43 29 20 / 0.4);          /* dimming behind a dialog */
+
+  /* ---- Spacing (4/8 px grid) ---- */
+  --spacing-2xs: 4px;
+  --spacing-xs: 8px;
+  --spacing-sm: 12px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* ---- Corner radius ---- */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  /* ---- Type. Use as `font: var(--text-body)`. Sizes are in rem so they follow the phone's text-size setting. ---- */
+  --font-display: "Fraunces", Georgia, "Times New Roman", serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text-display: 600 1.75rem/2.125rem var(--font-display);     /* 28/34 */
+  --text-title: 600 1.375rem/1.75rem var(--font-display);       /* 22/28 */
+  --text-heading: 600 1.125rem/1.5rem var(--font-body);         /* 18/24 */
+  --text-body: 400 1rem/1.5rem var(--font-body);                /* 16/24 */
+  --text-body-strong: 600 1rem/1.5rem var(--font-body);
+  --text-label: 600 0.875rem/1.25rem var(--font-body);          /* 14/20 */
+  --text-caption: 400 0.875rem/1.25rem var(--font-body);
+  --text-small: 500 0.75rem/1rem var(--font-body);              /* 12/16 */
+
+  /* ---- Shadows ---- */
+  --shadow-card: 0 1px 2px rgb(43 29 20 / 0.06), 0 2px 8px rgb(43 29 20 / 0.06);
+  --shadow-sheet: 0 -4px 24px rgb(43 29 20 / 0.14);
+  --shadow-pin: 0 2px 6px rgb(43 29 20 / 0.25);
+
+  /* ---- Sizes ---- */
+  --tap-target-min: 44px;   /* smallest comfortable thing to tap with a thumb */
+  --button-height: 48px;
+}
