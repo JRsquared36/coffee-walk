@@ -1,6 +1,7 @@
 // Everything that talks to Google lives here, so swapping providers later touches one file.
 
 import { parseGoogleDurationSeconds } from "./route-planning.js";
+import { SEARCH_PRIMARY_TYPES } from "./cafe-selection.js";
 
 // Loads the Maps JavaScript API once. Resolves when `google.maps.importLibrary` is ready.
 export function loadGoogleMaps(apiKey) {
@@ -34,11 +35,14 @@ const DETAILED_PLACE_FIELDS = [
   "utcOffsetMinutes", // needed by isOpen() to work out "open now" in the café's time zone
   "websiteURI",
   "googleMapsURI",
+  "primaryType", // e.g. "coffee_shop", "cafe", "bakery": what Google says the place mainly is
+  "primaryTypeDisplayName", // the same in words, e.g. "Coffee shop", shown on the stop card
 ];
 const BASIC_PLACE_FIELDS = ["id", "displayName", "location"];
 
 // Returns cafés as plain objects: { placeId, name, location: {lat, lng}, rating, ratingCount,
-// address, priceLevel, weeklyHours, isOpenNow, websiteUrl, googleMapsUrl }. Any detail may be null.
+// address, priceLevel, weeklyHours, isOpenNow, websiteUrl, googleMapsUrl, primaryType, typeLabel }.
+// Any detail may be null. Deciding which ones are real coffee stops happens in cafe-selection.js.
 export async function searchNearbyCafes(center, radiusMeters) {
   const { Place } = await google.maps.importLibrary("places");
   const locationRestriction = { center, radius: radiusMeters };
@@ -47,7 +51,9 @@ export async function searchNearbyCafes(center, radiusMeters) {
     ({ places } = await Place.searchNearby({
       fields: DETAILED_PLACE_FIELDS,
       locationRestriction,
-      includedTypes: ["cafe", "coffee_shop"],
+      // Primary type = what the place mainly is. Plain includedTypes also matched bagel shops and
+      // pie companies that merely list "cafe" among their secondary types.
+      includedPrimaryTypes: SEARCH_PRIMARY_TYPES,
       maxResultCount: 20,
     }));
   } catch (detailedSearchError) {
@@ -56,7 +62,7 @@ export async function searchNearbyCafes(center, radiusMeters) {
       ({ places } = await Place.searchNearby({
         fields: BASIC_PLACE_FIELDS,
         locationRestriction,
-        includedTypes: ["cafe"],
+        includedPrimaryTypes: ["coffee_shop", "cafe"],
         maxResultCount: 20,
       }));
     } catch (basicSearchError) {
@@ -81,6 +87,8 @@ async function toCafe(place) {
     isOpenNow: await isOpenNowOrUnknown(place),
     websiteUrl: place.websiteURI ?? null,
     googleMapsUrl: place.googleMapsURI ?? null,
+    primaryType: place.primaryType ?? null,
+    typeLabel: place.primaryTypeDisplayName ?? null,
   };
 }
 
