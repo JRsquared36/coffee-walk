@@ -23,7 +23,13 @@ Then open http://localhost:8000. (Location only works on `localhost` or HTTPS, s
 ```
 npm test
 ```
-Uses Node's built-in test runner (Node 20+). No packages to install.
+Uses Node's built-in test runner (Node 20+). No packages to install. These run on every deploy.
+
+```
+npm install --no-save playwright && npx playwright install chromium   # once
+npm run test:browser
+```
+Drives the real page in a headless browser at desktop and phone sizes, against a **fake** Google Maps, so it needs no API key and costs nothing. It shows the app behaves as intended; it can't show that real Google behaves like the fake. It is not part of the deploy.
 
 ## Files
 
@@ -42,3 +48,4 @@ Uses Node's built-in test runner (Node 20+). No packages to install.
 | `js/config.example.js` | Template for `js/config.js` (your key; not committed) |
 | `.github/workflows/deploy.yml` | Tests, injects the key secret, deploys to Pages |
 | `tests/` | Unit tests for the pure logic and the log |
+| `tests/browser/check.cjs` | Browser checks against a fake Google Maps (`npm run test:browser`) |

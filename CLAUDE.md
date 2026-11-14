@@ -58,7 +58,8 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 
 ## Testing
 - Run `npm test` before every PR. New pure logic gets unit tests.
-- Browser checks use a fake Google Maps. Before relying on one, check the fake's shape against Google's
+- Browser checks live in `tests/browser/check.cjs` (`npm run test:browser`). Run them before every PR
+  that touches the page, and extend them with the feature. They use a fake Google Maps. Before relying on one, check the fake's shape against Google's
   docs (lesson: `LatLngBounds` lives in `importLibrary("core")`, not `"maps"`. The fake copied the
   same mistake, so tests passed while the live site crashed).
 
