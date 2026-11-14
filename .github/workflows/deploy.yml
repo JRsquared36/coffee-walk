@@ -1,0 +1,50 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # lets you re-deploy from the Actions tab, e.g. after changing the secret
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run tests (a failing test stops the deploy)
+        run: npm test
+
+      - name: Write the Google Maps key into js/config.js
+        env:
+          GOOGLE_MAP_KEY: ${{ secrets.GOOGLE_MAP_KEY }}
+        run: |
+          if [ -z "$GOOGLE_MAP_KEY" ]; then
+            echo "::error::Repository secret GOOGLE_MAP_KEY is missing or empty."
+            exit 1
+          fi
+          printf 'export const GOOGLE_MAPS_API_KEY = "%s";\n' "$GOOGLE_MAP_KEY" > js/config.js
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - id: deployment
+        uses: actions/deploy-pages@v4

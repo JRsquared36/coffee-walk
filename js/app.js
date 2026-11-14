@@ -1,6 +1,5 @@
 // Browser glue: buttons, location, map drawing. The decisions live in route-planning.js.
 
-import { GOOGLE_MAPS_API_KEY } from "./config.js";
 import { loadGoogleMaps, searchNearbyCafes, computeWalkingLoop } from "./google-maps.js";
 import {
   chooseRandomStops,
@@ -56,6 +55,7 @@ let drawnMarkers = [];  // removed before drawing a new walk
 let drawnRouteLine = null;
 let isWaitingForMapTap = false;
 let cafeBeingCheckedIn = null;
+let googleMapsApiKey = null; // loaded from js/config.js at startup
 
 function showStatus(message) {
   elements.statusMessage.textContent = message;
@@ -65,13 +65,20 @@ function showStatus(message) {
 
 async function startApp() {
   renderCoffeeLog();
-  if (!GOOGLE_MAPS_API_KEY || GOOGLE_MAPS_API_KEY === "PASTE_YOUR_KEY_HERE") {
-    showStatus("Add your Google Maps API key in js/config.js to get started.");
+  try {
+    // Loaded with import() instead of a top-of-file import so a missing js/config.js shows a
+    // message rather than silently breaking the whole page.
+    ({ GOOGLE_MAPS_API_KEY: googleMapsApiKey } = await import("./config.js"));
+  } catch {
+    googleMapsApiKey = null;
+  }
+  if (!googleMapsApiKey || googleMapsApiKey === "PASTE_YOUR_KEY_HERE") {
+    showStatus("No Google Maps key found. For local preview, copy js/config.example.js to js/config.js and add your key.");
     elements.startWalkButton.disabled = true;
     return;
   }
   try {
-    await loadGoogleMaps(GOOGLE_MAPS_API_KEY);
+    await loadGoogleMaps(googleMapsApiKey);
     const { Map, Polyline, LatLngBounds } = await google.maps.importLibrary("maps");
     const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker");
     const map = new Map(document.getElementById("map"), {
@@ -151,7 +158,7 @@ async function buildAndShowWalk() {
   let path;
   let usedRealStreets = true;
   try {
-    ({ legs, path } = await computeWalkingLoop(GOOGLE_MAPS_API_KEY, walk.start, walk.orderedStops));
+    ({ legs, path } = await computeWalkingLoop(googleMapsApiKey, walk.start, walk.orderedStops));
   } catch (error) {
     console.warn("Walking route unavailable; drawing straight lines instead.", error);
     usedRealStreets = false;

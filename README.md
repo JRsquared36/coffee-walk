@@ -6,9 +6,10 @@ Live: https://jrsquared36.github.io/coffee-walk/
 
 ## Setup
 
-1. Put your Google Maps Platform key in `js/config.js`.
-2. In Google Cloud Console, restrict the key to these websites: `https://jrsquared36.github.io/*` and `http://localhost:8000/*`. The key is visible to anyone who opens the site, so this restriction is what stops others from using it.
-3. The key needs: Maps JavaScript API, Places API (New), and Routes API. Without the Routes API the walk is drawn as straight lines with estimated times.
+1. **Live site:** the key lives in the repository secret `GOOGLE_MAP_KEY` (Settings → Secrets and variables → Actions). On every push to `main`, `.github/workflows/deploy.yml` runs the tests, writes `js/config.js` from that secret, and deploys. Pages must be set to **Settings → Pages → Source: GitHub Actions**.
+2. **Local preview:** copy `js/config.example.js` to `js/config.js` and paste your key. `js/config.js` is in `.gitignore`, so it won't be committed.
+3. In Google Cloud Console, restrict the key to these websites: `https://jrsquared36.github.io/*` and `http://localhost:8000/*`. The key is still visible to anyone who opens the live site (the browser needs it); the secret only keeps it out of git history. The restriction is what stops others from using it.
+4. The key needs: Maps JavaScript API, Places API (New), and Routes API. Without the Routes API the walk is drawn as straight lines with estimated times.
 
 ## Run locally
 
@@ -34,5 +35,6 @@ Uses Node's built-in test runner (Node 20+). No packages to install.
 | `js/google-maps.js` | Everything that talks to Google (load map, café search, walking route) |
 | `js/route-planning.js` | Pure logic: distances, picking stops, shortest loop order, check-in distance |
 | `js/coffee-log.js` | Your check-ins, saved in localStorage |
-| `js/config.js` | Your API key |
+| `js/config.example.js` | Template for `js/config.js` (your key; not committed) |
+| `.github/workflows/deploy.yml` | Tests, injects the key secret, deploys to Pages |
 | `tests/` | Unit tests for the pure logic and the log |
