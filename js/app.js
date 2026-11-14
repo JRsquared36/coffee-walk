@@ -1,10 +1,8 @@
 // Browser glue: buttons, location, map drawing, and which view the panel shows.
-// The decisions live in the pure modules (route-planning.js, cafe-selection.js, cafe-details.js).
+// The decisions live in the pure modules (walk-preferences.js, route-planning.js, cafe-selection.js, cafe-details.js).
 
-import { loadGoogleMaps, searchNearbyCafes, computeWalkingLoop } from "./google-maps.js";
+import { loadGoogleMaps, searchNearbyCafes, searchCafesByText, computeWalkingLoop } from "./google-maps.js";
 import {
-  chooseRandomStops,
-  orderStopsForShortestLoop,
   estimateStraightLineLegs,
   formatDistance,
   formatWalkingTime,
@@ -14,10 +12,17 @@ import {
 import { createCoffeeLog } from "./coffee-log.js";
 import { cafeMetaParts, cafeBadges, todaysHoursLabel } from "./cafe-details.js";
 import { createBottomSheet } from "./bottom-sheet.js";
-import { selectCoffeeFirstCafes, topCandidatePool, MINIMUM_RATING, MINIMUM_REVIEW_COUNT } from "./cafe-selection.js";
+import { selectCoffeeFirstCafes, MINIMUM_RATING, MINIMUM_REVIEW_COUNT } from "./cafe-selection.js";
+import {
+  ASPECTS,
+  STOP_RANGES,
+  searchRadiusMetersForWalk,
+  mergeCafesWithMatches,
+  rankWalkOptions,
+  matchSummary,
+  aspectLabelsNoStopMatched,
+} from "./walk-preferences.js";
 
-const FIRST_SEARCH_RADIUS_METERS = 800;
-const WIDER_SEARCH_RADIUS_METERS = 1500;
 const DEFAULT_MAP_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 }; // whole US until we know where you are
 
 const elements = {
@@ -53,7 +58,10 @@ try {
 
 const walk = {
   start: null,          // {lat, lng}
-  nearbyCafes: [],      // qualifying coffee stops for this start, best first; cached so "New route" doesn't search again
+  preferences: null,    // what was chosen when this walk was planned: { aspectIds, maxWalkMinutes, stopRange }
+  options: [],          // the best walks for those preferences, best first; "New route" steps through them without searching again
+  optionIndex: 0,
+  notices: [],          // things to tell the walker about this plan, e.g. a preference search that failed
   orderedStops: [],
   legs: [],             // walking distance/time for each leg of the current walk
 };
@@ -68,6 +76,7 @@ let googleMapsApiKey = null; // loaded from js/config.js at startup
 
 // The phone bottom sheet. Created before anything else so the layout is right even with no API key.
 const bottomSheet = createBottomSheet({ sheetElement: elements.panel, handleElement: elements.sheetHandle });
+bottomSheet.setSnap("full"); // the app opens on the setup view; see showView
 
 function showStatus(message) {
   elements.statusMessage.textContent = message;
@@ -76,14 +85,36 @@ function showStatus(message) {
 // The panel shows one view at a time: "setup" (choose and start), "walk" (the stop list)
 // or "detail" (one café). css/style.css shows the view named in data-view.
 function showView(viewName) {
+  const previousViewName = elements.panel.dataset.view;
   elements.panel.dataset.view = viewName;
   elements.panelContent.scrollTop = 0;
-  bottomSheet.ensureAtLeastHalf();
+  // Phone sheet height: choosing preferences needs the room and the map is still empty, so setup is
+  // full height. Once there's a route, drop to half so the map shows it. Otherwise leave the height
+  // the walker chose, only lifting it if it's at peek.
+  if (viewName === "setup") bottomSheet.setSnap("full");
+  else if (previousViewName === "setup") bottomSheet.setSnap("half");
+  else bottomSheet.ensureAtLeastHalf();
 }
 
 // ---------- Startup ----------
 
+// The preference chips come from the ASPECTS list, so adding an aspect there is the only change needed.
+function renderAspectChips() {
+  document.getElementById("aspect-chips").replaceChildren(
+    ...ASPECTS.map((aspect) => {
+      const checkbox = createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.name = "aspect";
+      checkbox.value = aspect.id;
+      const chip = createElement("label", "chip");
+      chip.append(checkbox, createElement("span", "", aspect.label));
+      return chip;
+    }),
+  );
+}
+
 async function startApp() {
+  renderAspectChips();
   renderCoffeeLog();
   try {
     // Loaded with import() instead of a top-of-file import so a missing js/config.js shows a
@@ -140,19 +171,28 @@ elements.startWalkButton.addEventListener("click", () => {
   );
 });
 
-elements.newRouteButton.addEventListener("click", () => {
-  if (walk.start) buildAndShowWalk();
+elements.newRouteButton.addEventListener("click", async () => {
+  if (walk.options.length < 2) return;
+  walk.optionIndex = (walk.optionIndex + 1) % walk.options.length; // after the last option, back to the best one
+  setButtonsBusy(true);
+  try {
+    await buildWalkAndReportErrors();
+  } finally {
+    setButtonsBusy(false);
+  }
 });
 
 elements.startOverButton.addEventListener("click", () => {
   clearWalkFromMap();
   walk.orderedStops = [];
+  walk.options = [];
   showStatus("");
   showView("setup");
 });
 
 function askForMapTap(reason) {
   isWaitingForMapTap = true;
+  bottomSheet.setSnap("half"); // uncover the map so there's something to tap
   showStatus(`${reason} Tap the map to choose where your walk starts.`);
 }
 
@@ -167,28 +207,68 @@ async function planWalkFrom(start) {
   }
 }
 
-// Returns true if we have cafés to build a walk from; otherwise shows why not.
+// Reads the preference chips in the setup view.
+function chosenPreferences() {
+  const checkedValue = (name) => document.querySelector(`input[name="${name}"]:checked`).value;
+  return {
+    aspectIds: [...document.querySelectorAll('input[name="aspect"]:checked')].map((input) => input.value),
+    maxWalkMinutes: Number(checkedValue("walk-minutes")),
+    stopRange: STOP_RANGES[checkedValue("stop-range")],
+  };
+}
+
+// Finds cafés and ranks the possible walks. Returns true if there is a walk to show; otherwise shows why not.
 async function findCafesNear(start) {
-  showStatus("Looking for coffee shops nearby…");
-  let selection;
+  const preferences = chosenPreferences();
+  const radiusMeters = searchRadiusMetersForWalk(preferences.maxWalkMinutes);
+  const chosenAspects = ASPECTS.filter((aspect) => preferences.aspectIds.includes(aspect.id));
+  showStatus(chosenAspects.length > 0 ? "Looking for coffee shops that fit…" : "Looking for coffee shops nearby…");
+
+  // One plain nearby search plus one text search per chosen aspect, all at once.
+  let nearbyCafes;
+  const cafesByAspectId = {};
+  const notices = [];
   try {
-    selection = selectCoffeeFirstCafes(await searchNearbyCafes(start, FIRST_SEARCH_RADIUS_METERS));
-    if (selection.qualifyingCafes.length < selectedStopCount()) {
-      showStatus("Only a few coffee shops close by. Looking a bit farther…");
-      selection = selectCoffeeFirstCafes(await searchNearbyCafes(start, WIDER_SEARCH_RADIUS_METERS));
-    }
+    const nearbySearch = searchNearbyCafes(start, radiusMeters);
+    const aspectSearches = await Promise.allSettled(
+      chosenAspects.map((aspect) => searchCafesByText(start, radiusMeters, aspect.searchText)));
+    nearbyCafes = await nearbySearch;
+    aspectSearches.forEach((result, index) => {
+      const aspect = chosenAspects[index];
+      if (result.status === "fulfilled") {
+        cafesByAspectId[aspect.id] = result.value;
+      } else {
+        // One failed preference search shouldn't cost the whole walk. Say which one, with Google's reason.
+        console.error(result.reason);
+        notices.push(`Couldn't check "${aspect.label}". Google said: ${result.reason.message}`);
+      }
+    });
   } catch (error) {
     console.error(error);
     // Show Google's own reason: on a phone there is no console to look in.
     showStatus(`Café search failed. Google said: ${error.message}`);
     return false;
   }
-  walk.nearbyCafes = selection.qualifyingCafes;
-  if (walk.nearbyCafes.length === 0) {
-    showStatus(`No coffee shops within 1.5 km met the bar${describeExclusions(selection.excludedCountsByReason)}. Try tapping the map somewhere busier.`);
+
+  const allCafes = mergeCafesWithMatches({ start, radiusMeters, nearbyCafes, cafesByAspectId, selectedAspectIds: preferences.aspectIds });
+  const selection = selectCoffeeFirstCafes(allCafes); // text search can return bagel shops too, so the same rules apply
+  if (selection.qualifyingCafes.length === 0) {
+    showStatus(`No coffee shops within ${formatDistance(radiusMeters)} met the bar${describeExclusions(selection.excludedCountsByReason)}. Try a longer walk, or tap the map somewhere busier.`);
     isWaitingForMapTap = true;
+    bottomSheet.setSnap("half"); // uncover the map so there's something to tap
     return false;
   }
+
+  walk.preferences = preferences;
+  walk.notices = notices;
+  walk.options = rankWalkOptions({
+    start,
+    cafes: selection.qualifyingCafes,
+    selectedAspectIds: preferences.aspectIds,
+    stopRange: preferences.stopRange,
+    maxWalkMinutes: preferences.maxWalkMinutes,
+  });
+  walk.optionIndex = 0;
   return true;
 }
 
@@ -214,11 +294,8 @@ async function buildWalkAndReportErrors() {
 }
 
 async function buildAndShowWalk() {
-  const requestedStops = selectedStopCount();
-  // Random picks from the best-scoring cafés: good stops, with variety when you tap "New route".
-  const candidatePool = topCandidatePool(walk.nearbyCafes, requestedStops);
-  const stops = chooseRandomStops(candidatePool, requestedStops);
-  walk.orderedStops = orderStopsForShortestLoop(walk.start, stops);
+  const option = walk.options[walk.optionIndex];
+  walk.orderedStops = option.stops;
 
   let legs;
   let path;
@@ -242,15 +319,24 @@ async function buildAndShowWalk() {
   elements.routeSourceNote.textContent = usedRealStreets
     ? "Walking route by Google. Times don't include time spent in cafés."
     : "Couldn't get a street route, so these are straight lines with estimated times.";
-  elements.newRouteButton.disabled = candidatePool.length <= requestedStops; // nothing new to pick from
   showView("walk");
-  showStatus(walk.orderedStops.length < requestedStops
-    ? `Only found ${walk.orderedStops.length} coffee shop${walk.orderedStops.length === 1 ? "" : "s"} that met the bar nearby, so your walk is shorter.`
-    : "");
+  showStatus(walkNotices(totalSeconds).join(" "));
 }
 
-function selectedStopCount() {
-  return Number(document.querySelector('input[name="stop-count"]:checked').value);
+// Plain statements of where this walk falls short of what was asked, so nothing is quietly relaxed.
+function walkNotices(totalWalkSeconds) {
+  const { aspectIds, maxWalkMinutes, stopRange } = walk.preferences;
+  const notices = [...walk.notices];
+  if (walk.orderedStops.length < stopRange.minStops) {
+    const count = walk.orderedStops.length;
+    notices.push(`Only found ${count} coffee shop${count === 1 ? "" : "s"} that met the bar nearby, so your walk is shorter.`);
+  }
+  if (totalWalkSeconds > maxWalkMinutes * 60) {
+    notices.push(`This walk is about ${formatWalkingTime(totalWalkSeconds)}, over your ${maxWalkMinutes} min. It's the closest fit nearby.`);
+  }
+  const unmatchedLabels = aspectLabelsNoStopMatched(walk.orderedStops, aspectIds);
+  if (unmatchedLabels.length > 0) notices.push(`No stop on this walk matched: ${unmatchedLabels.join(", ")}.`);
+  return notices;
 }
 
 // Reads a design token from css/tokens.css, for the few places (Google's route line) that need a
@@ -261,7 +347,7 @@ function designToken(tokenName) {
 
 function setButtonsBusy(isBusy) {
   elements.startWalkButton.disabled = isBusy;
-  elements.newRouteButton.disabled = isBusy;
+  elements.newRouteButton.disabled = isBusy || walk.options.length < 2; // with one option there is no other route to show
 }
 
 // ---------- Map drawing ----------
@@ -322,8 +408,9 @@ function legLabel(stopIndex) {
 
 function badgesFor(stop) {
   const badges = cafeBadges(stop);
+  matchSummary(stop, walk.preferences.aspectIds).matchedLabels.forEach((label) => badges.push({ label, tone: "accent" }));
   const pastVisits = coffeeLog.entriesForPlace(stop.placeId);
-  if (pastVisits.length > 0) badges.push({ label: `Logged ${pastVisits.length}× · last ${pastVisits[0].rating}★`, tone: "accent" });
+  if (pastVisits.length > 0) badges.push({ label: `Logged ${pastVisits.length}× · last ${pastVisits[0].rating}★`, tone: "neutral" });
   return badges;
 }
 
@@ -430,17 +517,36 @@ function renderCafeDetail() {
   checkInButton.type = "button";
   checkInButton.addEventListener("click", () => openCheckIn(stop));
 
+  const matches = createMatchExplanation(stop);
+
   const links = createElement("div", "detail-actions");
   links.append(createExternalLink("Directions", buildWalkingDirectionsUrl(stop), "button button--secondary"));
   if (stop.websiteUrl) links.append(createExternalLink("Website", stop.websiteUrl, "button button--quiet"));
 
-  elements.cafeDetail.replaceChildren(header, facts, checkInButton, links);
+  elements.cafeDetail.replaceChildren(...[header, facts, matches, checkInButton, links].filter(Boolean));
   if (stop.googleMapsUrl) {
     const moreLink = createExternalLink("Reviews and photos on Google Maps", stop.googleMapsUrl);
     const moreLine = createElement("p", "caption");
     moreLine.append(moreLink);
     elements.cafeDetail.append(moreLine);
   }
+}
+
+// "Why this café": which chosen preferences it matched and which it didn't. Null if none were chosen.
+function createMatchExplanation(stop) {
+  const { matchedLabels, unmatchedLabels } = matchSummary(stop, walk.preferences.aspectIds);
+  if (matchedLabels.length + unmatchedLabels.length === 0) return null;
+  const explanation = createElement("div", "detail-matches");
+  if (matchedLabels.length > 0) {
+    explanation.append(createElement("p", "label", "Matches what you asked for"));
+    explanation.append(createBadgeRow(matchedLabels.map((label) => ({ label, tone: "accent" }))));
+  }
+  if (unmatchedLabels.length > 0) {
+    explanation.append(createElement("p", "label", matchedLabels.length > 0 ? "No sign of" : "No sign of what you asked for"));
+    explanation.append(createBadgeRow(unmatchedLabels.map((label) => ({ label, tone: "neutral" }))));
+  }
+  explanation.append(createElement("p", "caption", "Based on Google search results, so treat it as a hint."));
+  return explanation;
 }
 
 // Highlights the chosen café's card and enlarges its pin; pass null to clear.

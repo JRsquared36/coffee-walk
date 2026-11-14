@@ -38,7 +38,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .panel-content {
   flex: 1; overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column; gap: var(--spacing-md);
-  padding: var(--spacing-lg) var(--spacing-md);
+  --panel-padding-bottom: var(--spacing-lg);   /* also used by .pinned-action to reach the very bottom */
+  padding: var(--spacing-lg) var(--spacing-md) var(--panel-padding-bottom);
 }
 .sheet-handle { display: none; }
 
@@ -59,7 +60,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   }
   .panel.is-dragging { transition: none; }   /* follow the finger exactly */
   .panel-content {
-    padding: 0 var(--spacing-md) calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+    --panel-padding-bottom: calc(var(--spacing-xl) + env(safe-area-inset-bottom));   /* room for the iPhone home bar */
+    padding: 0 var(--spacing-md) var(--panel-padding-bottom);
   }
   .sheet-handle {
     display: flex; align-items: center; justify-content: center; flex-shrink: 0;
@@ -83,6 +85,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .panel[data-view="detail"] .log-section { display: none; }
 
 .intro { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
+.preference { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+/* The main action stays at the bottom edge of the panel while the choices scroll behind it. */
+.pinned-action {
+  /* The negative offset and matching padding stretch its background over the panel's bottom padding,
+     so nothing scrolls into view underneath the button. */
+  position: sticky; bottom: calc(-1 * var(--panel-padding-bottom));
+  padding: var(--spacing-sm) 0 var(--panel-padding-bottom);
+  background: var(--color-bg-surface);
+}
 .walk-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
 .walk-titles { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
 
@@ -183,6 +194,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .detail-title h2 { font: var(--text-display); }
 .detail-facts { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
 .detail-facts .strong { font: var(--text-body-strong); }
+.detail-matches { display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .detail-actions { display: flex; gap: var(--spacing-xs); }
 .detail-actions .button { flex: 1; }
 .close-button {

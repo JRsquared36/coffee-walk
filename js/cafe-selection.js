@@ -6,7 +6,7 @@
 //      says coffee ("Sunrise Bagels & Coffee"). Only places Google calls a coffee_shop escape this.
 //   3. Chains are excluded.
 //   4. Quality floor: 4.0★ or better with at least 20 reviews.
-//   Survivors are scored so the most coffee-focused, best-rated places are picked first.
+//   Survivors are scored for coffee focus and rating; walk-preferences.js uses that score to break ties.
 
 // What we ask Google for. Bakery is included only so rule 1's exception can apply.
 export const SEARCH_PRIMARY_TYPES = ["coffee_shop", "cafe", "bakery"];
@@ -86,9 +86,4 @@ export function selectCoffeeFirstCafes(cafes) {
   }
   qualifyingCafes.sort((first, second) => coffeeFirstScore(second) - coffeeFirstScore(first));
   return { qualifyingCafes, excludedCountsByReason };
-}
-
-// The pool to pick stops from: the best-scoring cafés, with a few extra so "New route" still has variety.
-export function topCandidatePool(rankedCafes, stopCount) {
-  return rankedCafes.slice(0, Math.max(stopCount * 2, 8));
 }
