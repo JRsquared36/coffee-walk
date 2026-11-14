@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- viewport-fit=cover lets the sheet extend under the iPhone home bar; CSS adds padding there. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Coffee Walk</title>
   <!-- Fonts from Google Fonts. If they fail to load, tokens.css falls back to fonts already on the device. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,44 +15,53 @@
 </head>
 <body>
   <main class="layout">
-    <section class="panel" aria-label="Coffee walk planner">
-      <header class="intro">
-        <h1>Coffee Walk</h1>
-        <p class="text-secondary">A walking loop through coffee shops near you.</p>
-      </header>
-
-      <div class="controls">
-        <div class="chip-group" role="radiogroup" aria-labelledby="stop-count-label">
-          <span id="stop-count-label" class="label">Stops</span>
-          <label class="chip"><input type="radio" name="stop-count" value="3"><span>3</span></label>
-          <label class="chip"><input type="radio" name="stop-count" value="4" checked><span>4</span></label>
-          <label class="chip"><input type="radio" name="stop-count" value="5"><span>5</span></label>
-        </div>
-        <button id="start-walk-button" type="button" class="button button--primary button--block">Start a coffee walk</button>
-      </div>
-
-      <p id="status-message" class="status" role="status" aria-live="polite"></p>
-
-      <section id="walk-section" class="controls" hidden>
-        <div class="walk-header">
-          <div class="walk-titles">
-            <h2>Your walk</h2>
-            <p id="walk-totals" class="caption"></p>
-          </div>
-          <button id="new-route-button" type="button" class="button button--secondary">New route</button>
-        </div>
-        <ol id="stop-list" class="stop-list"></ol>
-        <p id="route-source-note" class="caption"></p>
-      </section>
-
-      <section class="log-section">
-        <h2>My coffee log</h2>
-        <p id="empty-log-message" class="caption">No check-ins yet. Tap "I'm here" at a stop to log it.</p>
-        <ul id="log-list" class="log-list"></ul>
-      </section>
-    </section>
-
     <div id="map" class="map" aria-label="Map"></div>
+
+    <!-- On phones this panel is a bottom sheet over the map; on wide screens it's a sidebar.
+         data-view decides which of the three views below is showing: setup, walk or detail. -->
+    <section id="panel" class="panel" data-view="setup" aria-label="Coffee walk planner">
+      <button id="sheet-handle" class="sheet-handle" type="button" aria-label="Resize panel"><span class="sheet-handle-bar"></span></button>
+
+      <div class="panel-content">
+        <p id="status-message" class="status" role="status" aria-live="polite"></p>
+
+        <div class="view view--setup">
+          <header class="intro">
+            <h1>Coffee Walk</h1>
+            <p class="text-secondary">A walking loop through coffee shops near you.</p>
+          </header>
+          <div class="chip-group" role="radiogroup" aria-labelledby="stop-count-label">
+            <span id="stop-count-label" class="label">Stops</span>
+            <label class="chip"><input type="radio" name="stop-count" value="3"><span>3</span></label>
+            <label class="chip"><input type="radio" name="stop-count" value="4" checked><span>4</span></label>
+            <label class="chip"><input type="radio" name="stop-count" value="5"><span>5</span></label>
+          </div>
+          <button id="start-walk-button" type="button" class="button button--primary button--block">Start a coffee walk</button>
+          <p class="caption">We'll ask for your location to find coffee shops nearby.</p>
+        </div>
+
+        <section id="walk-section" class="view view--walk">
+          <div class="walk-header">
+            <div class="walk-titles">
+              <h2>Your walk</h2>
+              <p id="walk-totals" class="caption"></p>
+            </div>
+            <button id="new-route-button" type="button" class="button button--secondary">New route</button>
+          </div>
+          <ol id="stop-list" class="stop-list"></ol>
+          <p id="route-source-note" class="caption"></p>
+          <button id="start-over-button" type="button" class="button button--quiet button--block">Start over</button>
+        </section>
+
+        <section id="cafe-detail" class="view view--detail" aria-label="Café details"></section>
+
+        <section class="log-section">
+          <h2>My coffee log</h2>
+          <p id="empty-log-message" class="caption">No check-ins yet. Tap "I'm here" at a stop to log it.</p>
+          <ul id="log-list" class="log-list"></ul>
+        </section>
+      </div>
+    </section>
   </main>
 
   <dialog id="check-in-dialog">

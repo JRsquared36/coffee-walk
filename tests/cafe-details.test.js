@@ -5,7 +5,6 @@ import {
   formatRating,
   formatOpenNow,
   todaysHours,
-  cafeSummaryParts,
   cafeMetaParts,
   cafeBadges,
   todaysHoursLabel,
@@ -55,13 +54,6 @@ test("today's hours: Google's list starts Monday, JavaScript's week starts Sunda
 test("today's hours: missing or malformed lists give null instead of a wrong day", () => {
   assert.equal(todaysHours(null, MONDAY), null);
   assert.equal(todaysHours(WEEK.slice(0, 5), MONDAY), null);
-});
-
-test("summary skips whatever Google didn't provide", () => {
-  const fullCafe = { rating: 4.7, ratingCount: 88, priceLevel: "INEXPENSIVE", isOpenNow: true, weeklyHours: WEEK };
-  assert.deepEqual(cafeSummaryParts(fullCafe, MONDAY), ["4.7★ (88)", "$", "Open now", "Today 7:00 AM – 5:00 PM"]);
-  const bareCafe = { rating: null, priceLevel: null, isOpenNow: null, weeklyHours: null };
-  assert.deepEqual(cafeSummaryParts(bareCafe, MONDAY), []);
 });
 
 test("meta line is rating and price only", () => {
