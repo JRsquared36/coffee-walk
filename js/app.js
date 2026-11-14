@@ -143,7 +143,8 @@ async function planWalkFrom(start) {
     await buildAndShowWalk();
   } catch (error) {
     console.error(error);
-    showStatus("Café search failed. Check your connection and API key, then try again.");
+    // Show Google's own reason: on a phone there is no console to look in.
+    showStatus(`Café search failed. Google said: ${error.message}`);
   } finally {
     setButtonsBusy(false);
   }
