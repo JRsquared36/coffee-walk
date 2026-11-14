@@ -30,7 +30,8 @@ Uses Node's built-in test runner (Node 20+). No packages to install.
 | File | What it does |
 |---|---|
 | `index.html` | Page structure |
-| `css/style.css` | Layout (map + panel; stacks on phones) |
+| `css/tokens.css` | Design tokens: colours, type, spacing, corners, shadows. Mirrors the Figma variables |
+| `css/style.css` | Layout and components, built only from the tokens |
 | `js/app.js` | Browser glue: buttons, location, map drawing, check-in dialog |
 | `js/google-maps.js` | Everything that talks to Google (load map, café search, walking route) |
 | `js/route-planning.js` | Pure logic: distances, picking stops, shortest loop order, check-in distance |
