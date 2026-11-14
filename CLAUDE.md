@@ -8,12 +8,14 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 
 ## Roadmap (build in this order, one PR each)
 1. v1 (done): random cafés nearby, shortest loop, walking route, per-leg times, personal coffee log.
-2. Café details: map pin popups and stop cards with rating, price, open now, hours.
-3. Preferences: aspects (good coffee, coffee flight, unique space, outdoor seating, good conversation,
+2. Café details (done): map pin popups and stop cards with rating, price, open now, hours.
+3. Coffee-first selection (done): primary types, no chains, 4.0★ / 20-review floor.
+4. Design system: tokens and components from Figma, then the mobile bottom-sheet layout.
+5. Preferences: aspects (good coffee, coffee flight, unique space, outdoor seating, good conversation,
    cozy/quiet, lively/buzzy, work-friendly), max walking time, stop range (2–3, 3–4, 5–6). Matching uses
    one Google text search per aspect; each stop shows why it was picked and what it didn't match.
    If nothing fits fully, fill with the best partial matches and label them.
-4. Later (needs a backend, so discuss first): shared Letterboxd-style reviews with accounts.
+6. Later (needs a backend, so discuss first): shared Letterboxd-style reviews with accounts.
 
 ## Working with the owner
 - The owner is learning to build software. Explain every change in plain language: what, why, and
@@ -43,6 +45,17 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
   - `js/google-maps.js`: the only file that talks to Google.
   - `js/coffee-log.js`: check-ins in localStorage.
   - `js/app.js`: browser glue (buttons, location, map drawing).
+
+## Design system
+- Source of truth: the Figma file "Coffee Walk — Design System"
+  (https://www.figma.com/design/TAUz8uhQSr0vvbJJAC6Vac). Warm and cozy, light mode only, phone first.
+- `css/tokens.css` mirrors the Figma variables by name (`color/bg/brand` = `--color-bg-brand`).
+  Change a value in both places or neither.
+- Components use semantic tokens only: no raw colours, sizes or fonts in `css/style.css` or in
+  JavaScript. Read a token from JavaScript with `getComputedStyle` when Google needs a colour.
+- Design a new screen in Figma first and get the owner's approval before coding it.
+- Phone rules: tap targets at least 44 px, body text at least 16 px, text contrast at least 4.5:1,
+  main actions within thumb reach at the bottom.
 
 ## Code style
 - Name every identifier so a newcomer understands it without reading the surrounding code.
