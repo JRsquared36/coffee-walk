@@ -1,0 +1,8 @@
+{
+  "name": "coffee-walk",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}
