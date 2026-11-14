@@ -12,6 +12,7 @@ import {
 } from "./route-planning.js";
 import { createCoffeeLog } from "./coffee-log.js";
 import { cafeSummaryParts } from "./cafe-details.js";
+import { selectCoffeeFirstCafes, topCandidatePool, MINIMUM_RATING, MINIMUM_REVIEW_COUNT } from "./cafe-selection.js";
 
 const FIRST_SEARCH_RADIUS_METERS = 800;
 const WIDER_SEARCH_RADIUS_METERS = 1500;
@@ -47,7 +48,7 @@ try {
 
 const walk = {
   start: null,          // {lat, lng}
-  nearbyCafes: [],      // cached search results for this start, so "New route" doesn't search again
+  nearbyCafes: [],      // qualifying coffee stops for this start, best first; cached so "New route" doesn't search again
   orderedStops: [],
   legs: [],             // walking distance/time for each leg of the current walk
 };
@@ -144,12 +145,13 @@ async function planWalkFrom(start) {
 
 // Returns true if we have cafés to build a walk from; otherwise shows why not.
 async function findCafesNear(start) {
-  showStatus("Looking for cafés nearby…");
+  showStatus("Looking for coffee shops nearby…");
+  let selection;
   try {
-    walk.nearbyCafes = await searchNearbyCafes(start, FIRST_SEARCH_RADIUS_METERS);
-    if (walk.nearbyCafes.length < selectedStopCount()) {
-      showStatus("Only a few cafés close by. Looking a bit farther…");
-      walk.nearbyCafes = await searchNearbyCafes(start, WIDER_SEARCH_RADIUS_METERS);
+    selection = selectCoffeeFirstCafes(await searchNearbyCafes(start, FIRST_SEARCH_RADIUS_METERS));
+    if (selection.qualifyingCafes.length < selectedStopCount()) {
+      showStatus("Only a few coffee shops close by. Looking a bit farther…");
+      selection = selectCoffeeFirstCafes(await searchNearbyCafes(start, WIDER_SEARCH_RADIUS_METERS));
     }
   } catch (error) {
     console.error(error);
@@ -157,12 +159,24 @@ async function findCafesNear(start) {
     showStatus(`Café search failed. Google said: ${error.message}`);
     return false;
   }
+  walk.nearbyCafes = selection.qualifyingCafes;
   if (walk.nearbyCafes.length === 0) {
-    showStatus("No cafés found within 1.5 km. Try tapping the map somewhere busier.");
+    showStatus(`No coffee shops within 1.5 km met the bar${describeExclusions(selection.excludedCountsByReason)}. Try tapping the map somewhere busier.`);
     isWaitingForMapTap = true;
     return false;
   }
   return true;
+}
+
+// e.g. " (skipped: 3 chains, 2 below 4★ / 20 reviews)", so an empty result isn't a mystery.
+function describeExclusions(excludedCountsByReason) {
+  const labels = {
+    "chain": (count) => `${count} chain${count === 1 ? "" : "s"}`,
+    "not coffee-first": (count) => `${count} not coffee-first`,
+    "below quality floor": (count) => `${count} below ${MINIMUM_RATING}★ / ${MINIMUM_REVIEW_COUNT} reviews`,
+  };
+  const parts = Object.entries(excludedCountsByReason).map(([reason, count]) => labels[reason](count));
+  return parts.length > 0 ? ` (skipped: ${parts.join(", ")})` : "";
 }
 
 // Separate from the search so the message says which part actually failed.
@@ -177,7 +191,9 @@ async function buildWalkAndReportErrors() {
 
 async function buildAndShowWalk() {
   const requestedStops = selectedStopCount();
-  const stops = chooseRandomStops(walk.nearbyCafes, requestedStops);
+  // Random picks from the best-scoring cafés: good stops, with variety when you tap "New route".
+  const candidatePool = topCandidatePool(walk.nearbyCafes, requestedStops);
+  const stops = chooseRandomStops(candidatePool, requestedStops);
   walk.orderedStops = orderStopsForShortestLoop(walk.start, stops);
 
   let legs;
@@ -202,10 +218,10 @@ async function buildAndShowWalk() {
   elements.routeSourceNote.textContent = usedRealStreets
     ? "Walking route by Google. Times don't include time spent in cafés."
     : "Couldn't get a street route, so these are straight lines with estimated times.";
-  elements.newRouteButton.disabled = walk.nearbyCafes.length <= requestedStops; // nothing new to pick from
+  elements.newRouteButton.disabled = candidatePool.length <= requestedStops; // nothing new to pick from
   elements.walkSection.hidden = false;
   showStatus(walk.orderedStops.length < requestedStops
-    ? `Only found ${walk.orderedStops.length} café${walk.orderedStops.length === 1 ? "" : "s"} nearby, so your walk is shorter.`
+    ? `Only found ${walk.orderedStops.length} coffee shop${walk.orderedStops.length === 1 ? "" : "s"} that met the bar nearby, so your walk is shorter.`
     : "");
 }
 
