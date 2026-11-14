@@ -33,8 +33,12 @@ test("a bakery qualifies only when its name says coffee", () => {
   assert.equal(reasonCafeIsExcluded(cafe({ name: "Breadline Bakery", primaryType: "bakery" })), "not coffee-first");
 });
 
-test("'café' in a name doesn't rescue a food-first place", () => {
+test("a café with a food word is dropped even when its name also says coffee", () => {
   assert.equal(reasonCafeIsExcluded(cafe({ name: "Joe's Bagel Café", primaryType: "cafe" })), "not coffee-first");
+  assert.equal(reasonCafeIsExcluded(cafe({ name: "Sunrise Bagels & Coffee", primaryType: "cafe" })), "not coffee-first");
+  assert.equal(reasonCafeIsExcluded(cafe({ name: "Sunrise Bagels & Coffee", primaryType: null, rating: null })), "not coffee-first");
+  // The same name is fine if Google calls it a coffee shop.
+  assert.equal(reasonCafeIsExcluded(cafe({ name: "Sunrise Bagels & Coffee", primaryType: "coffee_shop" })), null);
 });
 
 test("chains are excluded, independents with similar words are not", () => {

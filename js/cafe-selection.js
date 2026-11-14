@@ -2,7 +2,8 @@
 //
 // The rules (decided with the owner):
 //   1. Coffee-first: primary type coffee_shop or cafe. A bakery counts only if its name says coffee.
-//   2. A café whose name is food-first ("…Bagels", "…Pie Co.") and has no coffee word is dropped.
+//   2. A café whose name has a food word ("…Bagels", "…Pie Co.") is dropped, even if the name also
+//      says coffee ("Sunrise Bagels & Coffee"). Only places Google calls a coffee_shop escape this.
 //   3. Chains are excluded.
 //   4. Quality floor: 4.0★ or better with at least 20 reviews.
 //   Survivors are scored so the most coffee-focused, best-rated places are picked first.
@@ -52,7 +53,9 @@ export function reasonCafeIsExcluded(cafe) {
   if (cafe.primaryType != null && cafe.primaryType !== "coffee_shop" && cafe.primaryType !== "cafe" && !hasCoffeeName) {
     return "not coffee-first";
   }
-  if (cafe.primaryType !== "coffee_shop" && nameHasAnyWord(cafe.name, FOOD_FIRST_WORDS) && !hasCoffeeName) {
+  // Bakeries aren't checked here: rule 1 already let in only those whose name says coffee.
+  const isCafeOrUnknownType = cafe.primaryType === "cafe" || cafe.primaryType == null;
+  if (isCafeOrUnknownType && nameHasAnyWord(cafe.name, FOOD_FIRST_WORDS)) {
     return "not coffee-first";
   }
   // The floor needs a rating to check. Without one (basic fields), the café isn't excluded for it.
