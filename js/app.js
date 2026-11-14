@@ -79,7 +79,8 @@ async function startApp() {
   }
   try {
     await loadGoogleMaps(googleMapsApiKey);
-    const { Map, Polyline, LatLngBounds } = await google.maps.importLibrary("maps");
+    const { Map, Polyline } = await google.maps.importLibrary("maps");
+    const { LatLngBounds } = await google.maps.importLibrary("core"); // core, not maps
     const { AdvancedMarkerElement, PinElement } = await google.maps.importLibrary("marker");
     const map = new Map(document.getElementById("map"), {
       ...DEFAULT_MAP_VIEW,
@@ -128,6 +129,16 @@ function askForMapTap(reason) {
 async function planWalkFrom(start) {
   walk.start = start;
   setButtonsBusy(true);
+  try {
+    const foundCafes = await findCafesNear(start);
+    if (foundCafes) await buildWalkAndReportErrors();
+  } finally {
+    setButtonsBusy(false); // runs on every path, including early returns and errors
+  }
+}
+
+// Returns true if we have cafés to build a walk from; otherwise shows why not.
+async function findCafesNear(start) {
   showStatus("Looking for cafés nearby…");
   try {
     walk.nearbyCafes = await searchNearbyCafes(start, FIRST_SEARCH_RADIUS_METERS);
@@ -135,18 +146,27 @@ async function planWalkFrom(start) {
       showStatus("Only a few cafés close by. Looking a bit farther…");
       walk.nearbyCafes = await searchNearbyCafes(start, WIDER_SEARCH_RADIUS_METERS);
     }
-    if (walk.nearbyCafes.length === 0) {
-      showStatus("No cafés found within 1.5 km. Try tapping the map somewhere busier.");
-      isWaitingForMapTap = true;
-      return;
-    }
-    await buildAndShowWalk();
   } catch (error) {
     console.error(error);
     // Show Google's own reason: on a phone there is no console to look in.
     showStatus(`Café search failed. Google said: ${error.message}`);
-  } finally {
-    setButtonsBusy(false);
+    return false;
+  }
+  if (walk.nearbyCafes.length === 0) {
+    showStatus("No cafés found within 1.5 km. Try tapping the map somewhere busier.");
+    isWaitingForMapTap = true;
+    return false;
+  }
+  return true;
+}
+
+// Separate from the search so the message says which part actually failed.
+async function buildWalkAndReportErrors() {
+  try {
+    await buildAndShowWalk();
+  } catch (error) {
+    console.error(error);
+    showStatus(`Found cafés, but couldn't build the walk: ${error.message}`);
   }
 }
 
