@@ -1,4 +1,5 @@
-// Browser glue: buttons, location, map drawing. The decisions live in route-planning.js.
+// Browser glue: buttons, location, map drawing, and which view the panel shows.
+// The decisions live in the pure modules (route-planning.js, cafe-selection.js, cafe-details.js).
 
 import { loadGoogleMaps, searchNearbyCafes, computeWalkingLoop } from "./google-maps.js";
 import {
@@ -11,7 +12,8 @@ import {
   buildWalkingDirectionsUrl,
 } from "./route-planning.js";
 import { createCoffeeLog } from "./coffee-log.js";
-import { cafeSummaryParts, cafeMetaParts, cafeBadges, todaysHoursLabel } from "./cafe-details.js";
+import { cafeMetaParts, cafeBadges, todaysHoursLabel } from "./cafe-details.js";
+import { createBottomSheet } from "./bottom-sheet.js";
 import { selectCoffeeFirstCafes, topCandidatePool, MINIMUM_RATING, MINIMUM_REVIEW_COUNT } from "./cafe-selection.js";
 
 const FIRST_SEARCH_RADIUS_METERS = 800;
@@ -19,10 +21,14 @@ const WIDER_SEARCH_RADIUS_METERS = 1500;
 const DEFAULT_MAP_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 }; // whole US until we know where you are
 
 const elements = {
+  panel: document.getElementById("panel"),
+  panelContent: document.querySelector(".panel-content"),
+  sheetHandle: document.getElementById("sheet-handle"),
+  cafeDetail: document.getElementById("cafe-detail"),
+  startOverButton: document.getElementById("start-over-button"),
   startWalkButton: document.getElementById("start-walk-button"),
   newRouteButton: document.getElementById("new-route-button"),
   statusMessage: document.getElementById("status-message"),
-  walkSection: document.getElementById("walk-section"),
   walkTotals: document.getElementById("walk-totals"),
   stopList: document.getElementById("stop-list"),
   routeSourceNote: document.getElementById("route-source-note"),
@@ -52,7 +58,7 @@ const walk = {
   legs: [],             // walking distance/time for each leg of the current walk
 };
 let googleLibraries;    // { map, Polyline, LatLngBounds, AdvancedMarkerElement }
-let cafeInfoPopup;      // one shared Google InfoWindow; opening it on another café moves it there
+let selectedStopIndex = null; // which stop's details are open, or null
 let drawnMarkers = [];  // removed before drawing a new walk
 let stopMarkers = [];   // stopMarkers[i] is the pin for walk.orderedStops[i]
 let drawnRouteLine = null;
@@ -60,8 +66,19 @@ let isWaitingForMapTap = false;
 let cafeBeingCheckedIn = null;
 let googleMapsApiKey = null; // loaded from js/config.js at startup
 
+// The phone bottom sheet. Created before anything else so the layout is right even with no API key.
+const bottomSheet = createBottomSheet({ sheetElement: elements.panel, handleElement: elements.sheetHandle });
+
 function showStatus(message) {
   elements.statusMessage.textContent = message;
+}
+
+// The panel shows one view at a time: "setup" (choose and start), "walk" (the stop list)
+// or "detail" (one café). css/style.css shows the view named in data-view.
+function showView(viewName) {
+  elements.panel.dataset.view = viewName;
+  elements.panelContent.scrollTop = 0;
+  bottomSheet.ensureAtLeastHalf();
 }
 
 // ---------- Startup ----------
@@ -82,7 +99,7 @@ async function startApp() {
   }
   try {
     await loadGoogleMaps(googleMapsApiKey);
-    const { Map, Polyline, InfoWindow } = await google.maps.importLibrary("maps");
+    const { Map, Polyline } = await google.maps.importLibrary("maps");
     const { LatLngBounds } = await google.maps.importLibrary("core"); // core, not maps
     const { AdvancedMarkerElement } = await google.maps.importLibrary("marker");
     const map = new Map(document.getElementById("map"), {
@@ -91,12 +108,13 @@ async function startApp() {
       clickableIcons: false,
     });
     googleLibraries = { map, Polyline, LatLngBounds, AdvancedMarkerElement };
-    cafeInfoPopup = new InfoWindow();
-    cafeInfoPopup.addListener("closeclick", () => highlightStopCard(null));
     map.addListener("click", (event) => {
-      if (!isWaitingForMapTap) return;
-      isWaitingForMapTap = false;
-      planWalkFrom({ lat: event.latLng.lat(), lng: event.latLng.lng() });
+      if (isWaitingForMapTap) {
+        isWaitingForMapTap = false;
+        planWalkFrom({ lat: event.latLng.lat(), lng: event.latLng.lng() });
+      } else if (selectedStopIndex !== null) {
+        closeCafeDetail(); // tapping empty map dismisses the café, like in other map apps
+      }
     });
   } catch (error) {
     showStatus(error.message);
@@ -124,6 +142,13 @@ elements.startWalkButton.addEventListener("click", () => {
 
 elements.newRouteButton.addEventListener("click", () => {
   if (walk.start) buildAndShowWalk();
+});
+
+elements.startOverButton.addEventListener("click", () => {
+  clearWalkFromMap();
+  walk.orderedStops = [];
+  showStatus("");
+  showView("setup");
 });
 
 function askForMapTap(reason) {
@@ -213,12 +238,12 @@ async function buildAndShowWalk() {
 
   const totalMeters = legs.reduce((sum, leg) => sum + leg.distanceMeters, 0);
   const totalSeconds = legs.reduce((sum, leg) => sum + leg.durationSeconds, 0);
-  elements.walkTotals.textContent = `${walk.orderedStops.length} stops · ${formatDistance(totalMeters)} · ~${formatWalkingTime(totalSeconds)} walking`;
+  elements.walkTotals.textContent = `${walk.orderedStops.length} stops · ${formatDistance(totalMeters)} · ~${formatWalkingTime(totalSeconds)}`;
   elements.routeSourceNote.textContent = usedRealStreets
     ? "Walking route by Google. Times don't include time spent in cafés."
     : "Couldn't get a street route, so these are straight lines with estimated times.";
   elements.newRouteButton.disabled = candidatePool.length <= requestedStops; // nothing new to pick from
-  elements.walkSection.hidden = false;
+  showView("walk");
   showStatus(walk.orderedStops.length < requestedStops
     ? `Only found ${walk.orderedStops.length} coffee shop${walk.orderedStops.length === 1 ? "" : "s"} that met the bar nearby, so your walk is shorter.`
     : "");
@@ -243,10 +268,7 @@ function setButtonsBusy(isBusy) {
 
 function drawWalkOnMap(path, usedRealStreets) {
   const { map, Polyline, LatLngBounds, AdvancedMarkerElement } = googleLibraries;
-  drawnMarkers.forEach((marker) => (marker.map = null));
-  drawnRouteLine?.setMap(null);
-  drawnMarkers = [];
-  cafeInfoPopup.close();
+  clearWalkFromMap();
 
   // Pins are our own elements (styled by .map-pin in css/style.css) placed inside Google's markers.
   const startPin = createElement("div", "map-pin map-pin--start");
@@ -258,9 +280,9 @@ function drawWalkOnMap(path, usedRealStreets) {
       map, position: stop.location, content: pin, title: stop.name, gmpClickable: true,
     });
     // Google has been moving markers from the "click" event to "gmp-click". Listening to both is
-    // safe: opening the same popup twice just leaves it open.
-    marker.addListener?.("click", () => openCafeInfo(index));
-    marker.addEventListener?.("gmp-click", () => openCafeInfo(index));
+    // safe: opening the same café twice just leaves it open.
+    marker.addListener?.("click", () => openCafeDetail(index));
+    marker.addEventListener?.("gmp-click", () => openCafeDetail(index));
     return marker;
   });
   drawnMarkers.push(...stopMarkers);
@@ -280,52 +302,58 @@ function drawWalkOnMap(path, usedRealStreets) {
   map.fitBounds(bounds, 48);
 }
 
+function clearWalkFromMap() {
+  drawnMarkers.forEach((marker) => (marker.map = null));
+  drawnRouteLine?.setMap(null);
+  drawnMarkers = [];
+  stopMarkers = [];
+  drawnRouteLine = null;
+  selectedStopIndex = null;
+}
+
 // ---------- Stop list ----------
 
 // legs[0] is start → stop 1, legs[i] is stop i → stop i+1, the last leg returns to start.
+function legLabel(stopIndex) {
+  const leg = walk.legs[stopIndex];
+  const fromWhere = stopIndex === 0 ? "from start" : `from stop ${stopIndex}`;
+  return `${formatDistance(leg.distanceMeters)} · ${formatWalkingTime(leg.durationSeconds)} ${fromWhere}`;
+}
+
+function badgesFor(stop) {
+  const badges = cafeBadges(stop);
+  const pastVisits = coffeeLog.entriesForPlace(stop.placeId);
+  if (pastVisits.length > 0) badges.push({ label: `Logged ${pastVisits.length}× · last ${pastVisits[0].rating}★`, tone: "accent" });
+  return badges;
+}
+
 function renderStopList() {
-  const legs = walk.legs;
   elements.stopList.replaceChildren(
     ...walk.orderedStops.map((stop, index) => {
-      const item = createElement("li", "stop");
-      item.dataset.stopIndex = String(index);
-      item.append(createElement("span", "stop-number", String(index + 1)));
-      // A button (not plain text) so it works with a keyboard and screen readers too.
-      const nameButton = createElement("button", "stop-name", stop.name); // textContent, never innerHTML: names come from the internet
-      nameButton.type = "button";
-      nameButton.title = "Show on map";
-      nameButton.addEventListener("click", () => openCafeInfo(index, { scrollMapIntoView: true }));
-      item.append(nameButton);
+      // The whole card is one button, so it's a big tap target and works with a keyboard.
+      const card = createElement("button", "stop");
+      card.type = "button";
+      card.dataset.stopIndex = String(index);
+      card.classList.toggle("is-selected", index === selectedStopIndex);
+      card.addEventListener("click", () => openCafeDetail(index));
 
+      card.append(createElement("span", "stop-number", String(index + 1)));
+      card.append(createElement("span", "stop-name", stop.name)); // textContent, never innerHTML: names come from the internet
       const meta = cafeMetaParts(stop);
-      if (meta.length > 0) item.append(createElement("span", "stop-details", meta.join(" · ")));
-
-      const badges = cafeBadges(stop);
-      const pastVisits = coffeeLog.entriesForPlace(stop.placeId);
-      if (pastVisits.length > 0) badges.push({ label: `Logged ${pastVisits.length}× · last ${pastVisits[0].rating}★`, tone: "accent" });
-      if (badges.length > 0) item.append(createBadgeRow(badges));
-
+      if (meta.length > 0) card.append(createElement("span", "stop-details", meta.join(" · ")));
+      const badges = badgesFor(stop);
+      if (badges.length > 0) card.append(createBadgeRow(badges));
       const hoursToday = todaysHoursLabel(stop);
-      if (hoursToday) item.append(createElement("span", "stop-details", hoursToday));
-      if (stop.address) item.append(createElement("span", "stop-details", stop.address));
-      if (stop.weeklyHours) item.append(createWeeklyHoursFoldout(stop.weeklyHours));
-      const fromWhere = index === 0 ? "from start" : `from stop ${index}`;
-      item.append(createElement("span", "stop-details",
-        `${formatDistance(legs[index].distanceMeters)} · ${formatWalkingTime(legs[index].durationSeconds)} ${fromWhere}`));
+      if (hoursToday) card.append(createElement("span", "stop-details", hoursToday));
+      card.append(createElement("span", "stop-details", legLabel(index)));
 
-      const actions = createElement("div", "stop-actions");
-      const checkInButton = createElement("button", "button button--secondary button--small", "I'm here");
-      checkInButton.type = "button";
-      checkInButton.addEventListener("click", () => openCheckIn(stop));
-      const directionsLink = createExternalLink("Directions", buildWalkingDirectionsUrl(stop));
-      directionsLink.className = "button button--quiet button--small";
-      actions.append(checkInButton, directionsLink);
-      item.append(actions);
+      const item = createElement("li");
+      item.append(card);
       return item;
     }),
   );
 
-  const returnLeg = legs[legs.length - 1];
+  const returnLeg = walk.legs[walk.legs.length - 1];
   const returnItem = createElement("li", "caption",
     `Back to start: ${formatDistance(returnLeg.distanceMeters)} · ${formatWalkingTime(returnLeg.durationSeconds)}`);
   elements.stopList.append(returnItem);
@@ -347,44 +375,72 @@ function createWeeklyHoursFoldout(weeklyHours) {
   return foldout;
 }
 
-function createExternalLink(text, url) {
-  const link = createElement("a", "", text);
+function createExternalLink(text, url, className = "") {
+  const link = createElement("a", className, text);
   link.href = url;
   link.target = "_blank";
   link.rel = "noopener"; // the opened page can't control this one
   return link;
 }
 
-// ---------- Café popup on the map ----------
+// ---------- Café detail view ----------
 
-function openCafeInfo(stopIndex, { scrollMapIntoView = false } = {}) {
+function openCafeDetail(stopIndex) {
   const stop = walk.orderedStops[stopIndex];
-  const marker = stopMarkers[stopIndex];
-  if (!stop || !marker) return;
-  cafeInfoPopup.setContent(buildCafeInfoContent(stop, stopIndex));
-  cafeInfoPopup.open({ map: googleLibraries.map, anchor: marker });
+  if (!stop) return;
+  selectedStopIndex = stopIndex;
+  renderCafeDetail();
   highlightStopCard(stopIndex);
-  // On phones the map sits above the list, so tapping a card would otherwise open a popup off-screen.
-  if (scrollMapIntoView && window.matchMedia("(max-width: 799px)").matches) {
-    document.getElementById("map").scrollIntoView({ behavior: "smooth" });
-  }
+  showView("detail");
+  googleLibraries.map.panTo(stop.location); // the map ends above the sheet, so this centres the pin in what's visible
+}
+
+function closeCafeDetail() {
+  selectedStopIndex = null;
+  highlightStopCard(null);
+  showView("walk");
 }
 
 // Built as DOM nodes rather than an HTML string, so café text can't inject markup.
-function buildCafeInfoContent(stop, stopIndex) {
-  const content = createElement("div", "cafe-popup");
-  content.append(createElement("strong", "cafe-popup-name", `${stopIndex + 1}. ${stop.name}`));
-  const summary = cafeSummaryParts(stop);
-  if (summary.length > 0) content.append(createElement("p", "", summary.join(" · ")));
-  if (stop.address) content.append(createElement("p", "cafe-popup-muted", stop.address));
-  if (!stop.weeklyHours) content.append(createElement("p", "cafe-popup-muted", "Google has no hours for this café."));
+function renderCafeDetail() {
+  const stop = walk.orderedStops[selectedStopIndex];
+  if (!stop) return;
 
-  const links = createElement("p", "cafe-popup-links");
-  links.append(createExternalLink("Directions", buildWalkingDirectionsUrl(stop)));
-  if (stop.websiteUrl) links.append(createExternalLink("Website", stop.websiteUrl));
-  if (stop.googleMapsUrl) links.append(createExternalLink("Google Maps", stop.googleMapsUrl));
-  content.append(links);
-  return content;
+  const title = createElement("div", "detail-title");
+  title.append(createElement("p", "caption", `Stop ${selectedStopIndex + 1} of ${walk.orderedStops.length} · ${legLabel(selectedStopIndex)}`));
+  title.append(createElement("h2", "", stop.name));
+  const badges = badgesFor(stop);
+  if (badges.length > 0) title.append(createBadgeRow(badges));
+
+  const closeButton = createElement("button", "close-button", "✕");
+  closeButton.type = "button";
+  closeButton.setAttribute("aria-label", "Back to your walk");
+  closeButton.addEventListener("click", closeCafeDetail);
+  const header = createElement("div", "detail-header");
+  header.append(title, closeButton);
+
+  const facts = createElement("div", "detail-facts");
+  const meta = cafeMetaParts(stop);
+  if (meta.length > 0) facts.append(createElement("p", "strong", meta.join(" · ")));
+  facts.append(createElement("p", stop.weeklyHours ? "" : "text-secondary", todaysHoursLabel(stop) ?? "Google has no hours for this café."));
+  if (stop.address) facts.append(createElement("p", "text-secondary", stop.address));
+  if (stop.weeklyHours) facts.append(createWeeklyHoursFoldout(stop.weeklyHours));
+
+  const checkInButton = createElement("button", "button button--primary button--block", "I'm here");
+  checkInButton.type = "button";
+  checkInButton.addEventListener("click", () => openCheckIn(stop));
+
+  const links = createElement("div", "detail-actions");
+  links.append(createExternalLink("Directions", buildWalkingDirectionsUrl(stop), "button button--secondary"));
+  if (stop.websiteUrl) links.append(createExternalLink("Website", stop.websiteUrl, "button button--quiet"));
+
+  elements.cafeDetail.replaceChildren(header, facts, checkInButton, links);
+  if (stop.googleMapsUrl) {
+    const moreLink = createExternalLink("Reviews and photos on Google Maps", stop.googleMapsUrl);
+    const moreLine = createElement("p", "caption");
+    moreLine.append(moreLink);
+    elements.cafeDetail.append(moreLine);
+  }
 }
 
 // Highlights the chosen café's card and enlarges its pin; pass null to clear.
@@ -440,7 +496,7 @@ elements.checkInForm.addEventListener("submit", (event) => {
       }
       elements.checkInDialog.close();
       renderCoffeeLog();
-      if (walk.orderedStops.length) renderStopList();
+      refreshWalkViews();
     },
     () => {
       elements.saveCheckInButton.disabled = false;
@@ -450,6 +506,13 @@ elements.checkInForm.addEventListener("submit", (event) => {
     { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
   );
 });
+
+// After the log changes, redraw whatever shows "Logged" badges.
+function refreshWalkViews() {
+  if (walk.orderedStops.length === 0) return;
+  renderStopList();
+  if (selectedStopIndex !== null) renderCafeDetail();
+}
 
 function renderCoffeeLog() {
   const entries = coffeeLog.listEntries();
@@ -468,7 +531,7 @@ function renderCoffeeLog() {
       removeButton.addEventListener("click", () => {
         coffeeLog.removeEntry(entry.entryId);
         renderCoffeeLog();
-        if (walk.orderedStops.length) renderStopList();
+        refreshWalkViews();
       });
       header.append(removeButton);
       item.append(header);

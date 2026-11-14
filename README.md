@@ -31,8 +31,10 @@ Uses Node's built-in test runner (Node 20+). No packages to install.
 |---|---|
 | `index.html` | Page structure |
 | `css/tokens.css` | Design tokens: colours, type, spacing, corners, shadows. Mirrors the Figma variables |
-| `css/style.css` | Layout and components, built only from the tokens |
-| `js/app.js` | Browser glue: buttons, location, map drawing, check-in dialog |
+| `css/style.css` | Layout (bottom sheet on phones, sidebar on wide screens) and components, built only from the tokens |
+| `js/app.js` | Browser glue: buttons, location, map drawing, the panel's views (setup, walk, café detail), check-in |
+| `js/bottom-sheet.js` | The phone bottom sheet: dragging and tapping the handle |
+| `js/sheet-snapping.js` | Pure maths for the sheet's three resting heights |
 | `js/google-maps.js` | Everything that talks to Google (load map, café search, walking route) |
 | `js/route-planning.js` | Pure logic: distances, picking stops, shortest loop order, check-in distance |
 | `js/coffee-log.js` | Your check-ins, saved in localStorage |

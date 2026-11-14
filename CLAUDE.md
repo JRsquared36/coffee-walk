@@ -42,7 +42,11 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
   - `js/route-planning.js`, `js/cafe-details.js`: pure logic and formatting (no DOM, no Google), unit-tested.
   - `js/google-maps.js`: the only file that talks to Google.
   - `js/coffee-log.js`: check-ins in localStorage.
-  - `js/app.js`: browser glue (buttons, location, map drawing).
+  - `js/app.js`: browser glue (buttons, location, map drawing, which view the panel shows).
+  - `js/sheet-snapping.js`: pure maths for the phone bottom sheet's resting heights, unit-tested.
+  - `js/bottom-sheet.js`: dragging and tapping the sheet handle (DOM only).
+- The panel has three views (setup, walk, detail), chosen by `data-view` on `#panel`. On phones the
+  panel is a bottom sheet and the map ends where the sheet begins, so Google's logo is never covered.
 
 ## Code style
 - Name every identifier so a newcomer understands it without reading the surrounding code.

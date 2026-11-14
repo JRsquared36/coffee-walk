@@ -26,20 +26,63 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ---------- Layout ---------- */
-/* Phone: map on top, panel below. */
-.layout { display: flex; flex-direction: column-reverse; min-height: 100vh; }
-.map { height: 55vh; width: 100%; }
-.panel { padding: var(--spacing-md); display: flex; flex-direction: column; gap: var(--spacing-md); }
-
-/* Wider screens: panel on the left, map fills the rest. */
-@media (min-width: 800px) {
-  .layout { flex-direction: row; height: 100vh; }
-  .panel { width: 400px; flex-shrink: 0; overflow-y: auto; border-right: 1px solid var(--color-border-default); }
-  .map { height: 100%; flex: 1; }
+/* Wide screens: the panel is a sidebar on the left, the map fills the rest. */
+.layout { display: flex; flex-direction: row-reverse; height: 100vh; }
+.map { flex: 1; height: 100%; }
+.panel {
+  width: 400px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--color-bg-surface);
+  border-right: 1px solid var(--color-border-default);
 }
+.panel-content {
+  flex: 1; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-md);
+}
+.sheet-handle { display: none; }
+
+/* Phones: the map fills the screen and the panel is a bottom sheet over it.
+   Keep 799px in step with PHONE_LAYOUT_QUERY in js/bottom-sheet.js. */
+@media (max-width: 799px) {
+  body { overflow: hidden; }   /* the sheet scrolls, the page doesn't */
+  .layout { display: block; height: auto; }
+  /* The map stops where the sheet starts (js/bottom-sheet.js sets --map-bottom), so Google's logo stays visible. */
+  .map { position: fixed; inset: 0 0 var(--map-bottom, 50dvh) 0; height: auto; }
+  .panel {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    width: auto; height: var(--sheet-height, 55dvh);
+    border-right: none;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    box-shadow: var(--shadow-sheet);
+    transition: height 200ms ease;
+  }
+  .panel.is-dragging { transition: none; }   /* follow the finger exactly */
+  .panel-content {
+    padding: 0 var(--spacing-md) calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+  }
+  .sheet-handle {
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    width: 100%; height: 28px; padding: 0;
+    border: none; background: none; cursor: grab;
+    touch-action: none;   /* dragging the handle moves the sheet, not the page */
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sheet-handle-bar { width: 40px; height: 4px; border-radius: var(--radius-full); background: var(--color-border-default); }
+  /* Keyboard focus: ring the small bar, not the full-width strip. */
+  .sheet-handle:focus-visible { outline: none; }
+  .sheet-handle:focus-visible .sheet-handle-bar { outline: 2px solid var(--color-border-strong); outline-offset: 4px; }
+}
+@media (prefers-reduced-motion: reduce) { .panel { transition: none; } }
+
+/* Views: only the one named in the panel's data-view attribute shows. */
+.view { display: none; flex-direction: column; gap: var(--spacing-md); }
+.panel[data-view="setup"] .view--setup,
+.panel[data-view="walk"] .view--walk,
+.panel[data-view="detail"] .view--detail { display: flex; }
+.panel[data-view="detail"] .log-section { display: none; }
 
 .intro { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
-.controls { display: flex; flex-direction: column; gap: var(--spacing-md); }
 .walk-header { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-sm); }
 .walk-titles { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
 
@@ -104,18 +147,22 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .error { font: var(--text-caption); color: var(--color-text-danger); }
 
-/* ---------- Stop card ---------- */
+/* ---------- Stop card (the whole card is one button that opens the café) ---------- */
 .stop-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--spacing-sm); }
 .stop {
+  width: 100%;
   display: grid; grid-template-columns: 32px 1fr; gap: var(--spacing-2xs) var(--spacing-sm);
   padding: var(--spacing-md);
   background: var(--color-bg-surface);
   border: 1px solid var(--color-border-default);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-card);
+  text-align: left; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 /* Everything except the number badge goes in the second column, one line per row. */
 .stop > :not(.stop-number) { grid-column: 2; }
+.stop:active { background: var(--color-bg-sunken); }
 .stop.is-selected { background: var(--color-bg-accent-subtle); border-color: var(--color-border-strong); box-shadow: 0 0 0 1px var(--color-border-strong), var(--shadow-card); }
 .stop-number {
   width: 32px; height: 32px;
@@ -124,16 +171,27 @@ button, input, select, textarea { font: inherit; color: inherit; }
   background: var(--color-bg-brand); color: var(--color-text-on-brand);
   font: var(--text-label);
 }
-.stop-name {
-  padding: 0; border: none; background: none; cursor: pointer;
-  text-align: left;
-  font: var(--text-heading); color: var(--color-text-primary);
-}
+.stop-name { font: var(--text-heading); color: var(--color-text-primary); }
 .stop-details { font: var(--text-caption); color: var(--color-text-secondary); }
-.stop-actions { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; align-items: center; margin-top: var(--spacing-xs); }
 .weekly-hours { font: var(--text-caption); color: var(--color-text-secondary); }
-.weekly-hours summary { cursor: pointer; padding: var(--spacing-2xs) 0; }
-.weekly-hours ul { margin: var(--spacing-2xs) 0 0; padding-left: var(--spacing-md); }
+.weekly-hours summary { cursor: pointer; padding: var(--spacing-sm) 0; }
+.weekly-hours ul { margin: 0; padding-left: var(--spacing-md); }
+
+/* ---------- Café detail view ---------- */
+.detail-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--spacing-sm); }
+.detail-title { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+.detail-title h2 { font: var(--text-display); }
+.detail-facts { display: flex; flex-direction: column; gap: var(--spacing-2xs); }
+.detail-facts .strong { font: var(--text-body-strong); }
+.detail-actions { display: flex; gap: var(--spacing-xs); }
+.detail-actions .button { flex: 1; }
+.close-button {
+  width: var(--tap-target-min); height: var(--tap-target-min); flex-shrink: 0;
+  display: grid; place-items: center;
+  border: none; border-radius: var(--radius-full);
+  background: var(--color-bg-sunken); color: var(--color-text-primary);
+  font-size: 1.25rem; line-height: 1; cursor: pointer;
+}
 
 /* ---------- Map pins (our own elements inside Google's markers) ---------- */
 .map-pin {
@@ -151,13 +209,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .map-pin--start { background: var(--color-bg-accent); cursor: default; }
 .map-pin--start::after { content: ""; width: 14px; height: 14px; border-radius: var(--radius-full); background: var(--color-bg-surface); }
 .map-pin.is-selected { width: 48px; height: 48px; border-width: 3px; background: var(--color-bg-brand-pressed); font: var(--text-heading); }
-
-/* Google's popup (InfoWindow) has its own white card. */
-.cafe-popup { max-width: 240px; font: var(--text-caption); color: var(--color-text-primary); }
-.cafe-popup-name { font: var(--text-label); }
-.cafe-popup p { margin: var(--spacing-2xs) 0 0; }
-.cafe-popup-muted { color: var(--color-text-secondary); }
-.cafe-popup-links { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; }
 
 /* ---------- Coffee log ---------- */
 .log-section { display: flex; flex-direction: column; gap: var(--spacing-xs); }
@@ -179,6 +230,15 @@ dialog::backdrop { background: var(--color-scrim); }
 dialog form { display: flex; flex-direction: column; gap: var(--spacing-md); }
 .field { display: flex; flex-direction: column; gap: var(--spacing-xs); }
 .dialog-buttons { display: flex; flex-direction: column; gap: var(--spacing-xs); }
+/* Phones: the check-in slides up from the bottom like the main sheet. */
+@media (max-width: 799px) {
+  dialog {
+    width: 100%; max-width: 100%;
+    margin: auto 0 0;
+    padding: var(--spacing-lg) var(--spacing-md) calc(var(--spacing-xl) + env(safe-area-inset-bottom));
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+}
 
 /* Star rating: five radio buttons drawn as stars. */
 .star-rating { border: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: var(--spacing-2xs); }

@@ -51,15 +51,3 @@ export function todaysHoursLabel(cafe, date = new Date()) {
   const hoursToday = todaysHours(cafe.weeklyHours, date);
   return hoursToday ? `Today ${hoursToday}` : null;
 }
-
-// The one-line text summary used in the map popup.
-export function cafeSummaryParts(cafe, date = new Date()) {
-  const hoursToday = todaysHours(cafe.weeklyHours, date);
-  return [
-    cafe.typeLabel ?? null, // "Coffee shop", "Café", "Bakery": shows why the place qualified
-    formatRating(cafe.rating, cafe.ratingCount),
-    formatPriceLevel(cafe.priceLevel),
-    formatOpenNow(cafe.isOpenNow),
-    hoursToday ? `Today ${hoursToday}` : null,
-  ].filter(Boolean);
-}
