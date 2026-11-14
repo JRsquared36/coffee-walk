@@ -28,16 +28,35 @@
         <div class="view view--setup">
           <header class="intro">
             <h1>Coffee Walk</h1>
-            <p class="text-secondary">A walking loop through coffee shops near you.</p>
+            <p class="text-secondary">A walking loop through coffee shops that fit your mood.</p>
           </header>
-          <div class="chip-group" role="radiogroup" aria-labelledby="stop-count-label">
-            <span id="stop-count-label" class="label">Stops</span>
-            <label class="chip"><input type="radio" name="stop-count" value="3"><span>3</span></label>
-            <label class="chip"><input type="radio" name="stop-count" value="4" checked><span>4</span></label>
-            <label class="chip"><input type="radio" name="stop-count" value="5"><span>5</span></label>
+          <div class="preference">
+            <span id="aspects-label" class="label">What are you in the mood for?</span>
+            <!-- Filled in by js/app.js from the ASPECTS list in js/walk-preferences.js, so labels live in one place. -->
+            <div id="aspect-chips" class="chip-group" role="group" aria-labelledby="aspects-label"></div>
           </div>
-          <button id="start-walk-button" type="button" class="button button--primary button--block">Start a coffee walk</button>
-          <p class="caption">We'll ask for your location to find coffee shops nearby.</p>
+          <div class="preference">
+            <span id="walk-minutes-label" class="label">How long a walk?</span>
+            <div class="chip-group" role="radiogroup" aria-labelledby="walk-minutes-label">
+              <label class="chip"><input type="radio" name="walk-minutes" value="15"><span>15 min</span></label>
+              <label class="chip"><input type="radio" name="walk-minutes" value="30" checked><span>30 min</span></label>
+              <label class="chip"><input type="radio" name="walk-minutes" value="45"><span>45 min</span></label>
+              <label class="chip"><input type="radio" name="walk-minutes" value="60"><span>60 min</span></label>
+            </div>
+          </div>
+          <div class="preference">
+            <span id="stop-range-label" class="label">How many stops?</span>
+            <div class="chip-group" role="radiogroup" aria-labelledby="stop-range-label">
+              <label class="chip"><input type="radio" name="stop-range" value="2-3"><span>2–3</span></label>
+              <label class="chip"><input type="radio" name="stop-range" value="3-4" checked><span>3–4</span></label>
+              <label class="chip"><input type="radio" name="stop-range" value="5-6"><span>5–6</span></label>
+            </div>
+          </div>
+          <p class="caption">Walking time doesn't include time in the cafés. We'll ask for your location to find coffee shops nearby.</p>
+          <!-- Stays pinned to the bottom of the panel while you scroll the choices, so it's always in thumb reach. -->
+          <div class="pinned-action">
+            <button id="start-walk-button" type="button" class="button button--primary button--block">Start a coffee walk</button>
+          </div>
         </div>
 
         <section id="walk-section" class="view view--walk">
@@ -50,7 +69,7 @@
           </div>
           <ol id="stop-list" class="stop-list"></ol>
           <p id="route-source-note" class="caption"></p>
-          <button id="start-over-button" type="button" class="button button--quiet button--block">Start over</button>
+          <button id="start-over-button" type="button" class="button button--quiet button--block">Change preferences</button>
         </section>
 
         <section id="cafe-detail" class="view view--detail" aria-label="Café details"></section>

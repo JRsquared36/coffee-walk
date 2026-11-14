@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   haversineDistanceMeters,
-  chooseRandomStops,
   loopLengthMeters,
   orderStopsForShortestLoop,
   estimateStraightLineLegs,
@@ -22,15 +21,6 @@ test("haversine: one degree of latitude is about 111 km", () => {
 
 test("haversine: same point is zero", () => {
   assert.equal(haversineDistanceMeters({ lat: 40.7, lng: -74 }, { lat: 40.7, lng: -74 }), 0);
-});
-
-test("chooseRandomStops returns distinct cafés and never more than exist", () => {
-  const cafes = ["a", "b", "c", "d", "e"].map((name, index) => cafeAt(name, index, 0));
-  const picked = chooseRandomStops(cafes, 3, () => 0.5);
-  assert.equal(picked.length, 3);
-  assert.equal(new Set(picked.map((cafe) => cafe.name)).size, 3);
-  assert.equal(chooseRandomStops(cafes.slice(0, 2), 4).length, 2);
-  assert.equal(cafes.length, 5, "input list is not modified");
 });
 
 test("orderStopsForShortestLoop fixes a zig-zag order", () => {
