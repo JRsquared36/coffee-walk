@@ -37,12 +37,17 @@ export async function searchNearbyCafes(center, radiusMeters) {
     }));
   } catch (detailedSearchError) {
     console.warn("Detailed café search failed; retrying with basic fields only.", detailedSearchError);
-    ({ places } = await Place.searchNearby({
-      fields: BASIC_PLACE_FIELDS,
-      locationRestriction,
-      includedTypes: ["cafe"],
-      maxResultCount: 20,
-    }));
+    try {
+      ({ places } = await Place.searchNearby({
+        fields: BASIC_PLACE_FIELDS,
+        locationRestriction,
+        includedTypes: ["cafe"],
+        maxResultCount: 20,
+      }));
+    } catch (basicSearchError) {
+      // Keep both of Google's reasons: the first often names the real problem.
+      throw new Error(`${detailedSearchError.message} (basic retry: ${basicSearchError.message})`);
+    }
   }
   return places
     .filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL")
