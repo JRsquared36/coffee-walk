@@ -74,6 +74,22 @@ export async function searchNearbyCafes(center, radiusMeters) {
   return Promise.all(openPlaces.map(toCafe));
 }
 
+// Cafés Google's text search returns for a phrase like "cozy quiet coffee shop" near `center`.
+// Used to guess which cafés fit a preference: Google has no "cozy" field, but its search reads
+// reviews and descriptions. The area is a hint to Google, not a hard limit, so the caller drops
+// results that are too far away. Throws with Google's reason if the search is refused.
+export async function searchCafesByText(center, radiusMeters, textQuery) {
+  const { Place } = await google.maps.importLibrary("places");
+  const { places } = await Place.searchByText({
+    textQuery,
+    fields: DETAILED_PLACE_FIELDS,
+    locationBias: { center, radius: radiusMeters },
+    maxResultCount: 20,
+  });
+  const openPlaces = places.filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL");
+  return Promise.all(openPlaces.map(toCafe));
+}
+
 async function toCafe(place) {
   return {
     placeId: place.id,

@@ -6,7 +6,6 @@ import {
   reasonCafeIsExcluded,
   coffeeFirstScore,
   selectCoffeeFirstCafes,
-  topCandidatePool,
 } from "../js/cafe-selection.js";
 
 // A good café by default; each test overrides what it's about.
@@ -79,13 +78,6 @@ test("selectCoffeeFirstCafes ranks survivors and counts the rest by reason", () 
   ]);
   assert.deepEqual(qualifyingCafes.map((c) => c.name), ["Best Roasters", "Okay Café"]);
   assert.deepEqual(excludedCountsByReason, { chain: 1, "not coffee-first": 1, "below quality floor": 1 });
-});
-
-test("candidate pool keeps the best, with room for variety", () => {
-  const ranked = Array.from({ length: 20 }, (_, index) => ({ name: `Café ${index}` }));
-  assert.equal(topCandidatePool(ranked, 3).length, 8);
-  assert.equal(topCandidatePool(ranked, 5).length, 10);
-  assert.equal(topCandidatePool(ranked.slice(0, 4), 3).length, 4);
 });
 
 test("normalizeName handles apostrophes, ampersands and accents", () => {

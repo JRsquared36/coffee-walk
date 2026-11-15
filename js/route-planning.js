@@ -20,17 +20,6 @@ export function haversineDistanceMeters(pointA, pointB) {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(a));
 }
 
-// Pick `stopCount` different cafés at random. `randomNumber` is injectable so tests are repeatable.
-export function chooseRandomStops(cafes, stopCount, randomNumber = Math.random) {
-  const shuffled = [...cafes];
-  // Fisher–Yates shuffle, stopped early once we have enough.
-  for (let index = 0; index < Math.min(stopCount, shuffled.length); index++) {
-    const swapIndex = index + Math.floor(randomNumber() * (shuffled.length - index));
-    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
-  }
-  return shuffled.slice(0, stopCount);
-}
-
 // Length of start → stop1 → … → stopN → start, using straight-line distances.
 export function loopLengthMeters(start, orderedStops) {
   const path = [start, ...orderedStops.map((stop) => stop.location), start];

@@ -41,10 +41,16 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 - Deploy: `.github/workflows/deploy.yml` runs on push to `main`: `npm test`, then writes `js/config.js`
   from the `GOOGLE_MAP_KEY` secret, then publishes.
 - File responsibilities. Keep them separate:
-  - `js/route-planning.js`, `js/cafe-details.js`: pure logic and formatting (no DOM, no Google), unit-tested.
+  - `js/route-planning.js`, `js/cafe-details.js`, `js/cafe-selection.js`, `js/walk-preferences.js`: pure logic
+    and formatting (no DOM, no Google), unit-tested. `walk-preferences.js` holds the `ASPECTS` list
+    (label and Google search phrase for each preference) and ranks the possible walks.
   - `js/google-maps.js`: the only file that talks to Google.
   - `js/coffee-log.js`: check-ins in localStorage.
-  - `js/app.js`: browser glue (buttons, location, map drawing).
+  - `js/app.js`: browser glue (buttons, location, map drawing, which view the panel shows).
+  - `js/sheet-snapping.js`: pure maths for the phone bottom sheet's resting heights, unit-tested.
+  - `js/bottom-sheet.js`: dragging and tapping the sheet handle (DOM only).
+- The panel has three views (setup, walk, detail), chosen by `data-view` on `#panel`. On phones the
+  panel is a bottom sheet and the map ends where the sheet begins, so Google's logo is never covered.
 
 ## Design system
 - Source of truth: the Figma file "Coffee Walk — Design System"
@@ -65,7 +71,8 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 
 ## Testing
 - Run `npm test` before every PR. New pure logic gets unit tests.
-- Browser checks use a fake Google Maps. Before relying on one, check the fake's shape against Google's
+- Browser checks live in `tests/browser/check.cjs` (`npm run test:browser`). Run them before every PR
+  that touches the page, and extend them with the feature. They use a fake Google Maps. Before relying on one, check the fake's shape against Google's
   docs (lesson: `LatLngBounds` lives in `importLibrary("core")`, not `"maps"`. The fake copied the
   same mistake, so tests passed while the live site crashed).
 
@@ -76,6 +83,8 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 - The `fields` list in each Places request sets the price. Request only what's displayed, and say
   so in the PR when adding a field from a pricier tier.
 - Reuse search results (e.g. "New route" doesn't search again) instead of calling Google repeatedly.
+- Each Start costs one Nearby Search plus one Text Search per chosen preference (up to 9 requests).
+  Adding a preference adds a request per walk; say so in the PR.
 - Google's terms: place IDs may be stored indefinitely; other Places data (names, ratings, hours) must
   not be stored long-term. Anything persisted (now the coffee log; later a shared database) should key
   on place ID and re-fetch details.
