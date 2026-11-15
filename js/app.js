@@ -11,7 +11,7 @@ import {
 } from "./route-planning.js";
 import { createCoffeeLog } from "./coffee-log.js";
 import { cafeMetaParts, cafeBadges, todaysHoursLabel } from "./cafe-details.js";
-import { createBottomSheet } from "./bottom-sheet.js";
+import { createBottomSheet, PHONE_LAYOUT_QUERY } from "./bottom-sheet.js";
 import { selectCoffeeFirstCafes, MINIMUM_RATING, MINIMUM_REVIEW_COUNT } from "./cafe-selection.js";
 import {
   ASPECTS,
@@ -152,6 +152,11 @@ async function startApp() {
       ...DEFAULT_MAP_VIEW,
       mapId: "DEMO_MAP_ID", // advanced markers need a map ID; Google provides this one for testing
       clickableIcons: false,
+      // Google's default buttons (Map/Satellite, fullscreen, street view, camera) crowd a small map
+      // and aren't needed for a walk. Google's logo and legal links are not buttons and stay.
+      disableDefaultUI: true,
+      // Phones pinch to zoom. With a mouse there is no pinch, so wide screens keep the + and − buttons.
+      zoomControl: !window.matchMedia(PHONE_LAYOUT_QUERY).matches,
     });
     googleLibraries = { map, Polyline, LatLngBounds, AdvancedMarkerElement };
     map.addListener("click", (event) => {

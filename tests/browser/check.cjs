@@ -74,7 +74,7 @@ const fakeGoogleScript = `
     maps: {
       // Like the real Map, this sets inline position/overflow on its element, which overrides our CSS.
       // (The live site lost its map on phones because the fake didn't do this.)
-      Map: class { constructor(el) { el.textContent = "FAKE MAP"; el.style.position = "relative"; el.style.overflow = "hidden"; window.__map = this; }
+      Map: class { constructor(el, options) { el.textContent = "FAKE MAP"; el.style.position = "relative"; el.style.overflow = "hidden"; window.__map = this; window.__mapOptions = options; }
                    addListener(_e, fn) { window.__mapClick = fn; } fitBounds() {} panTo(p) { window.__panTo.push(p); } },
       Polyline: class { constructor(o) { window.__lines++; window.__lastLine = o; } setMap(m) { if (!m) window.__lines--; } },
     },
@@ -154,6 +154,8 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
   {
     const { page, context, errors } = await openPage(browser);
     check("starts on the setup view", (await view(page)) === "setup");
+    const desktopMapOptions = await page.evaluate(() => window.__mapOptions);
+    check("wide screen: Google's extra map buttons are off, zoom buttons stay", desktopMapOptions.disableDefaultUI === true && desktopMapOptions.zoomControl === true, JSON.stringify(desktopMapOptions));
     check("walk list hidden in setup view", !(await page.isVisible("#walk-section")));
     await startWalk(page);
     check("setup hidden once a walk exists", !(await page.isVisible("#start-walk-button")));
@@ -257,6 +259,8 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     const settle = () => page.waitForTimeout(320);
     await settle();
     check("setup opens at full height so every choice is visible", (await sheetHeight()) === 788, String(await sheetHeight()));
+    const phoneMapOptions = await page.evaluate(() => window.__mapOptions);
+    check("phone: no map buttons at all (pinch to zoom)", phoneMapOptions.disableDefaultUI === true && phoneMapOptions.zoomControl === false, JSON.stringify(phoneMapOptions));
     let map = await mapRect();
     check("map fills the space above the sheet", map.top === 0 && map.width === 390 && map.bottom === 844 - 788 + 24, JSON.stringify(map));
     check("all three preference groups visible without scrolling", await page.evaluate(() => [...document.querySelectorAll(".view--setup .preference")].every(e => { const r = e.getBoundingClientRect(); return r.top > 0 && r.bottom < 844; })));
