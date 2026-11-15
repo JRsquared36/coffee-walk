@@ -21,6 +21,7 @@ import {
   rankWalkOptions,
   matchSummary,
   aspectLabelsNoStopMatched,
+  isWalkOverTimeAllowance,
 } from "./walk-preferences.js";
 
 const DEFAULT_MAP_VIEW = { center: { lat: 39.5, lng: -98.35 }, zoom: 4 }; // whole US until we know where you are
@@ -347,7 +348,7 @@ function walkNotices(totalWalkSeconds) {
     const count = walk.orderedStops.length;
     notices.push(`Only found ${count} coffee shop${count === 1 ? "" : "s"} that met the bar nearby, so your walk is shorter.`);
   }
-  if (totalWalkSeconds > maxWalkMinutes * 60) {
+  if (isWalkOverTimeAllowance(totalWalkSeconds, maxWalkMinutes)) { // a few minutes over is fine and isn't mentioned
     notices.push(`This walk is about ${formatWalkingTime(totalWalkSeconds)}, over your ${maxWalkMinutes} min. It's the closest fit nearby.`);
   }
   const unmatchedLabels = aspectLabelsNoStopMatched(walk.orderedStops, aspectIds);
