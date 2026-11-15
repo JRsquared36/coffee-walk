@@ -114,7 +114,8 @@ async function openPage(browser, { routesFail = false, viewport = { width: 1280,
     if (routesFail) return r.fulfill({ status: 403, body: "PERMISSION_DENIED" });
     const body = JSON.parse(r.request().postData());
     const points = [body.origin, ...body.intermediates, body.destination].map((w) => [w.location.latLng.longitude, w.location.latLng.latitude]);
-    const legs = body.intermediates.map(() => ({ distanceMeters: 300, duration: "240s" })).concat([{ distanceMeters: 500, duration: "400s" }]);
+    // Each leg to a stop takes 4.5 minutes and the walk home 7.5: 3 stops = 21 min, 4 = 25.5, 6 = 34.5.
+    const legs = body.intermediates.map(() => ({ distanceMeters: 300, duration: "270s" })).concat([{ distanceMeters: 500, duration: "450s" }]);
     r.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" },
       body: JSON.stringify({ routes: [{ distanceMeters: 1700, duration: "1360s", legs, polyline: { geoJsonLinestring: { coordinates: points } } }] }) });
   });
@@ -383,6 +384,21 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     await page.click(".stop"); await page.waitForTimeout(300);
     await page.click("#sheet-handle"); await page.waitForTimeout(350);
     await page.screenshot({ path: `${SCRATCH}/prefs-phone-detail.png` });
+    await context.close();
+  }
+
+  // ---- A walk a few minutes over the chosen time is accepted without a warning ----
+  {
+    const { page, context, errors } = await openPage(browser);
+    await page.check('input[name="stop-range"][value="5-6"]'); // walk length stays at the default 30 min
+    await startWalk(page);
+    const stopCount = (await page.$$(".stop-name")).length;
+    const totals = await page.textContent("#walk-totals");
+    // The fake's 6-stop route takes 34.5 minutes: over 30, but within the 5-minute grace.
+    check("30 min choice, 5–6 stops: the fake route for 6 stops takes ~35 min", stopCount === 6 && /35 min/.test(totals), `${stopCount} stops, ${totals}`);
+    check("up to 5 minutes over: no over-time message", !/over your/.test(await page.textContent("#status-message")), await page.textContent("#status-message"));
+    check("the setup caption mentions walks can run a few minutes over", (await page.evaluate(() => document.querySelector(".view--setup .caption").textContent)).includes("a few minutes over"));
+    check("no page errors (time allowance)", errors.length === 0, errors.join("; "));
     await context.close();
   }
 
