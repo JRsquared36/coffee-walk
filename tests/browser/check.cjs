@@ -64,7 +64,9 @@ const fakeGoogleScript = `
   const places = ${JSON.stringify(CAFES)}.map(p => ({ ...p, location: { lat: () => p.lat, lng: () => p.lng }, isOpen: async () => true }));
   const libs = {
     maps: {
-      Map: class { constructor(el) { el.textContent = "FAKE MAP"; window.__map = this; }
+      // Like the real Map, this sets inline position/overflow on its element, which overrides our CSS.
+      // (The live site lost its map on phones because the fake didn't do this.)
+      Map: class { constructor(el) { el.textContent = "FAKE MAP"; el.style.position = "relative"; el.style.overflow = "hidden"; window.__map = this; }
                    addListener(_e, fn) { window.__mapClick = fn; } fitBounds() {} panTo(p) { window.__panTo.push(p); } },
       Polyline: class { constructor(o) { window.__lines++; window.__lastLine = o; } setMap(m) { if (!m) window.__lines--; } },
     },

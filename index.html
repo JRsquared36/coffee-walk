@@ -15,7 +15,11 @@
 </head>
 <body>
   <main class="layout">
-    <div id="map" class="map" aria-label="Map"></div>
+    <!-- The wrapper is what we size and position. Google's script sets its own "position: relative"
+         on the map element itself, which would override ours, so the map just fills the wrapper. -->
+    <div class="map-area">
+      <div id="map" class="map" aria-label="Map"></div>
+    </div>
 
     <!-- On phones this panel is a bottom sheet over the map; on wide screens it's a sidebar.
          data-view decides which of the three views below is showing: setup, walk or detail. -->

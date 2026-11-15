@@ -51,6 +51,8 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
   - `js/bottom-sheet.js`: dragging and tapping the sheet handle (DOM only).
 - The panel has three views (setup, walk, detail), chosen by `data-view` on `#panel`. On phones the
   panel is a bottom sheet and the map ends where the sheet begins, so Google's logo is never covered.
+- Size and position `.map-area`, never `#map`: Google's script sets `position: relative` on the map
+  element, which overrides our CSS (this once collapsed the map to zero height on phones).
 
 ## Design system
 - Source of truth: the Figma file "Coffee Walk — Design System"
