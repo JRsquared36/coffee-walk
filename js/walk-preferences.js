@@ -37,6 +37,13 @@ const GOOD_COFFEE_MINIMUM_RATING = 4.5;
 const GOOD_COFFEE_MINIMUM_REVIEWS = 100;
 // Streets aren't straight lines. Real walking routes are typically about this much longer.
 export const STREET_DETOUR_FACTOR = 1.3;
+// A walk a few minutes over the chosen time is fine (the owner's call), so it isn't reported as over.
+export const WALK_TIME_GRACE_MINUTES = 5;
+
+// Is this walk longer than the chosen time plus the few minutes of grace?
+export function isWalkOverTimeAllowance(walkSeconds, maxWalkMinutes) {
+  return walkSeconds > (maxWalkMinutes + WALK_TIME_GRACE_MINUTES) * 60;
+}
 const MINIMUM_SEARCH_RADIUS_METERS = 400;
 const MAXIMUM_SEARCH_RADIUS_METERS = 2000;
 
@@ -125,13 +132,17 @@ function* combinationsOf(items, groupSize, startIndex = 0, chosen = []) {
   }
 }
 
-// Returns the best walks, best first: [{ stops (in walking order), fitScore, estimatedWalkSeconds, fitsTimeLimit }].
+// Returns the best walks, best first:
+// [{ stops (in walking order), fitScore, estimatedWalkSeconds, fitsTimeLimit, fitsWithGrace }].
 // "New route" steps through this list, so no new Google searches are needed.
 //
-// Ranking: walks that fit the time limit come first, ordered by total fit, then more stops, then shorter walk.
+// Ranking: walks that fit the chosen time come first, then walks up to WALK_TIME_GRACE_MINUTES over it.
+// Within each of those two groups: best total fit, then more stops, then shorter walk.
+// The app still aims for the chosen time, because these are estimates and the real route is often a
+// little longer; the grace is there so a good walk that runs slightly over isn't thrown away.
 // (Total fit already favours more stops, because every extra café adds a little. The explicit "more
 // stops" step keeps that true when Google gives us no ratings or types and every score is zero.)
-// If nothing fits, the shortest walks come first (the closest we can get), labelled as over the limit.
+// Walks further over than that come last, shortest first (the closest we can get).
 export function rankWalkOptions({ start, cafes, selectedAspectIds, stopRange, maxWalkMinutes, maxOptions = 5 }) {
   // Trying every group gets slow with many cafés, so only the best-fitting ones are considered.
   // Bigger groups have far more orderings, so they get a smaller pool.
@@ -157,14 +168,16 @@ export function rankWalkOptions({ start, cafes, selectedAspectIds, stopRange, ma
         fitScore: group.reduce((total, cafe) => total + preferenceFitScore(cafe, selectedAspectIds), 0),
         estimatedWalkSeconds,
         fitsTimeLimit: estimatedWalkSeconds <= timeLimitSeconds,
+        fitsWithGrace: !isWalkOverTimeAllowance(estimatedWalkSeconds, maxWalkMinutes),
       });
     }
   }
 
-  const anyFits = options.some((option) => option.fitsTimeLimit);
+  // 0 = within the chosen time, 1 = within the grace, 2 = further over.
+  const timeGroup = (option) => (option.fitsTimeLimit ? 0 : option.fitsWithGrace ? 1 : 2);
   options.sort((first, second) => {
-    if (anyFits && first.fitsTimeLimit !== second.fitsTimeLimit) return first.fitsTimeLimit ? -1 : 1;
-    if (anyFits && first.fitsTimeLimit) {
+    if (timeGroup(first) !== timeGroup(second)) return timeGroup(first) - timeGroup(second);
+    if (timeGroup(first) < 2) {
       return second.fitScore - first.fitScore ||
         second.stops.length - first.stops.length ||
         first.estimatedWalkSeconds - second.estimatedWalkSeconds;

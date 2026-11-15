@@ -11,6 +11,8 @@ import {
   aspectLabelsNoStopMatched,
   estimateLoopWalkSeconds,
   rankWalkOptions,
+  isWalkOverTimeAllowance,
+  WALK_TIME_GRACE_MINUTES,
   keepOneCafePerName,
 } from "../js/walk-preferences.js";
 
@@ -119,6 +121,28 @@ test("ranking: when nothing fits the time, the shortest walk comes first and is 
   assert.equal(options[0].fitsTimeLimit, false);
   assert.deepEqual(names(options[0].stops), ["F1", "F2"], "the two nearest, the shortest possible loop");
   for (let index = 1; index < options.length; index++) assert.ok(options[index].estimatedWalkSeconds >= options[index - 1].estimatedWalkSeconds);
+});
+
+test("up to five minutes over the chosen time is not 'over'", () => {
+  assert.equal(WALK_TIME_GRACE_MINUTES, 5);
+  assert.equal(isWalkOverTimeAllowance(30 * 60, 30), false);
+  assert.equal(isWalkOverTimeAllowance(31 * 60, 30), false, "the real 31-minute walk on a 30-minute limit");
+  assert.equal(isWalkOverTimeAllowance(35 * 60, 30), false, "exactly five over is still fine");
+  assert.equal(isWalkOverTimeAllowance(35 * 60 + 1, 30), true);
+});
+
+test("ranking: a walk within the grace beats a shorter walk that is far over, and loses to one within the time", () => {
+  // Estimated walking time for a there-and-back to one café `meters` away: meters × 2 × 1.3 ÷ 1.35 seconds.
+  // 15 min limit = 900 s; grace ends at 1200 s. 450 m → 867 s (fits). 550 m → 1059 s (grace). 900 m → 1733 s (over).
+  const oneStop = { minStops: 1, maxStops: 1 };
+  const fitsButPlain = cafeAt("Fits Plain", 450);
+  const graceAndMatches = cafeAt("Grace Match", 550, 0, { matchedAspectIds: ["cozy-quiet"] });
+  const overAndMatches = cafeAt("Over Match", 900, 0, { matchedAspectIds: ["cozy-quiet"] });
+  const rank = (cafes) => rankWalkOptions({ start: START, cafes, selectedAspectIds: ["cozy-quiet"], stopRange: oneStop, maxWalkMinutes: 15 }).map((option) => option.stops[0].name);
+  assert.deepEqual(rank([overAndMatches, graceAndMatches, fitsButPlain]), ["Fits Plain", "Grace Match", "Over Match"]);
+  const [best] = rankWalkOptions({ start: START, cafes: [overAndMatches, graceAndMatches], selectedAspectIds: ["cozy-quiet"], stopRange: oneStop, maxWalkMinutes: 15 });
+  assert.equal(best.stops[0].name, "Grace Match");
+  assert.deepEqual([best.fitsTimeLimit, best.fitsWithGrace], [false, true]);
 });
 
 test("ranking: fewer cafés than the range asks for still gives a walk", () => {
