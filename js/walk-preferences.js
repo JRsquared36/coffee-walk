@@ -8,7 +8,7 @@
 //     highest total fit whose walking loop fits the chosen time.
 
 import { haversineDistanceMeters, loopLengthMeters, orderStopsForShortestLoop, AVERAGE_WALKING_SPEED_METERS_PER_SECOND } from "./route-planning.js";
-import { coffeeFirstScore } from "./cafe-selection.js";
+import { coffeeFirstScore, normalizeName } from "./cafe-selection.js";
 
 // `searchText` is what we ask Google's text search for. Edit freely; shorter, plainer phrases tend to work best.
 export const ASPECTS = [
@@ -99,6 +99,20 @@ export function estimateLoopWalkSeconds(start, orderedStops) {
   return (loopLengthMeters(start, orderedStops) * STREET_DETOUR_FACTOR) / AVERAGE_WALKING_SPEED_METERS_PER_SECOND;
 }
 
+// A walk shouldn't visit three branches of the same coffee company. From a list sorted best first,
+// keeps only the first café of each name (ignoring capitals and punctuation), so the best-fitting,
+// then nearest, branch wins. Cafés without a usable name are all kept.
+export function keepOneCafePerName(cafesBestFirst) {
+  const namesSeen = new Set();
+  return cafesBestFirst.filter((cafe) => {
+    const name = normalizeName(cafe.name);
+    if (name === "") return true;
+    if (namesSeen.has(name)) return false;
+    namesSeen.add(name);
+    return true;
+  });
+}
+
 // Every way to choose `groupSize` items from `items`, keeping their order.
 function* combinationsOf(items, groupSize, startIndex = 0, chosen = []) {
   if (chosen.length === groupSize) {
@@ -121,11 +135,10 @@ export function rankWalkOptions({ start, cafes, selectedAspectIds, stopRange, ma
   // Trying every group gets slow with many cafés, so only the best-fitting ones are considered.
   // Bigger groups have far more orderings, so they get a smaller pool.
   const candidateLimit = stopRange.maxStops >= 5 ? 8 : 10;
-  const candidates = [...cafes]
-    .sort((first, second) =>
-      preferenceFitScore(second, selectedAspectIds) - preferenceFitScore(first, selectedAspectIds) ||
-      haversineDistanceMeters(start, first.location) - haversineDistanceMeters(start, second.location))
-    .slice(0, candidateLimit);
+  const bestFirst = [...cafes].sort((first, second) =>
+    preferenceFitScore(second, selectedAspectIds) - preferenceFitScore(first, selectedAspectIds) ||
+    haversineDistanceMeters(start, first.location) - haversineDistanceMeters(start, second.location));
+  const candidates = keepOneCafePerName(bestFirst).slice(0, candidateLimit);
   if (candidates.length === 0) return [];
 
   // With too few cafés for the chosen range, use as many as there are.
