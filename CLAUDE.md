@@ -50,7 +50,8 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
   - `js/sheet-snapping.js`: pure maths for the phone bottom sheet's resting heights, unit-tested.
   - `js/bottom-sheet.js`: dragging and tapping the sheet handle (DOM only).
 - The panel has three views (setup, walk, detail), chosen by `data-view` on `#panel`. On phones the
-  panel is a bottom sheet and the map ends where the sheet begins, so Google's logo is never covered.
+  panel is a bottom sheet and the map ends exactly where the sheet begins, with no overlap: Google's
+  logo sits along the map's bottom edge and its terms require it to stay visible.
 - Size and position `.map-area`, never `#map`: Google's script sets `position: relative` on the map
   element, which overrides our CSS (this once collapsed the map to zero height on phones).
 
