@@ -11,6 +11,7 @@ import {
   aspectLabelsNoStopMatched,
   estimateLoopWalkSeconds,
   rankWalkOptions,
+  keepOneCafePerName,
 } from "../js/walk-preferences.js";
 
 const START = { lat: 0, lng: 0 };
@@ -131,6 +132,33 @@ test("ranking: with no ratings or types (basic data), the walk still uses the to
   const bare = Array.from({ length: 6 }, (_, index) => cafeAt(`Bare ${index}`, 100, 70 * index, { primaryType: null, rating: null, ratingCount: null }));
   const [best] = rankWalkOptions({ start: START, cafes: bare, selectedAspectIds: [], stopRange: STOP_RANGES["3-4"], maxWalkMinutes: 30 });
   assert.equal(best.stops.length, 4);
+});
+
+test("one café per name: the best-ranked branch is kept, the rest dropped", () => {
+  const branches = [cafeAt("787 Coffee", 100), cafeAt("Other Roasters", 150), cafeAt("787 COFFEE", 200), cafeAt("787 Coffee.", 300)];
+  assert.deepEqual(keepOneCafePerName(branches).map((cafe) => cafe.location.lat), [branches[0].location.lat, branches[1].location.lat]);
+  const unnamed = [cafeAt("", 100), cafeAt("", 200)];
+  assert.equal(keepOneCafePerName(unnamed).length, 2, "cafés without a name aren't treated as the same place");
+});
+
+test("ranking never puts two branches of the same café in one walk (the real '787 Coffee ×3' case)", () => {
+  const matchesAll = { matchedAspectIds: ["good-coffee", "coffee-flight"], rating: 4.9, ratingCount: 4000 };
+  const cafes = [
+    { ...cafeAt("787 Coffee", 300, 0, matchesAll), placeId: "787-a" },
+    { ...cafeAt("787 Coffee", 100, 200, matchesAll), placeId: "787-b" }, // the nearest branch
+    { ...cafeAt("787 Coffee", 350, 300, matchesAll), placeId: "787-c" },
+    cafeAt("Radiant Café", 120, 0, { matchedAspectIds: ["good-coffee"] }),
+    cafeAt("Plain One", 150, 100),
+    cafeAt("Plain Two", 200, 150),
+  ];
+  const options = rankWalkOptions({ start: START, cafes, selectedAspectIds: ["good-coffee", "coffee-flight"], stopRange: STOP_RANGES["3-4"], maxWalkMinutes: 60 });
+  for (const option of options) {
+    const stopNames = option.stops.map((stop) => stop.name);
+    assert.equal(new Set(stopNames).size, stopNames.length, stopNames.join(", "));
+  }
+  const best = options[0].stops;
+  assert.ok(best.some((stop) => stop.placeId === "787-b"), "the nearest branch is the one kept");
+  assert.equal(best.length, 4);
 });
 
 test("ranking returns several different walks for 'New route', each in shortest-loop order", () => {
