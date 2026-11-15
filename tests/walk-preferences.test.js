@@ -6,6 +6,8 @@ import {
   WALK_MINUTES_OPTIONS,
   searchRadiusMetersForWalk,
   mergeCafesWithMatches,
+  topMatchesForPreference,
+  MATCHES_PER_PREFERENCE,
   preferenceFitScore,
   matchSummary,
   aspectLabelsNoStopMatched,
@@ -65,15 +67,41 @@ test("merge: no duplicates, matches recorded, far-away text results dropped", ()
   assert.deepEqual(near.matchedAspectIds, [], "input cafés are not modified");
 });
 
-test("merge: 'good coffee' also counts a café rated 4.5+ by 100+ people, but only if chosen", () => {
-  const loved = cafeAt("Loved", 100, 0, { rating: 4.7, ratingCount: 300 });
-  const fewReviews = cafeAt("Few Reviews", 100, 50, { rating: 4.9, ratingCount: 12 });
-  const input = { start: START, radiusMeters: 800, nearbyCafes: [loved, fewReviews], cafesByAspectId: {} };
-  const chosen = mergeCafesWithMatches({ ...input, selectedAspectIds: ["good-coffee"] });
-  assert.deepEqual(chosen.find((cafe) => cafe.name === "Loved").matchedAspectIds, ["good-coffee"]);
-  assert.deepEqual(chosen.find((cafe) => cafe.name === "Few Reviews").matchedAspectIds, []);
-  const notChosen = mergeCafesWithMatches({ ...input, selectedAspectIds: [] });
-  assert.deepEqual(notChosen.find((cafe) => cafe.name === "Loved").matchedAspectIds, []);
+test("only Google's first five qualifying results match a preference", () => {
+  assert.equal(MATCHES_PER_PREFERENCE, 5);
+  const results = Array.from({ length: 8 }, (_, index) => cafeAt(`Result ${index + 1}`, 100 + 10 * index));
+  const matches = topMatchesForPreference(results, { start: START, radiusMeters: 800 });
+  assert.deepEqual(matches.map((cafe) => cafe.name), ["Result 1", "Result 2", "Result 3", "Result 4", "Result 5"]);
+});
+
+test("places that could never be a stop don't use up one of the five", () => {
+  const results = [
+    cafeAt("Starbucks", 100),                                  // a chain
+    cafeAt("Too Far Roasters", 5000),                          // beyond walking range
+    cafeAt("Hudson Bagels", 120, 0, { primaryType: "cafe" }),  // not coffee-first
+    cafeAt("Barely Rated", 130, 0, { rating: 3.2 }),           // below the quality floor
+    cafeAt("Twin Coffee", 140),
+    cafeAt("Twin Coffee", 150),                                // a second branch of the same café
+    ...Array.from({ length: 6 }, (_, index) => cafeAt(`Good ${index + 1}`, 160 + 10 * index)),
+  ];
+  const matches = topMatchesForPreference(results, { start: START, radiusMeters: 800 });
+  assert.deepEqual(matches.map((cafe) => cafe.name), ["Twin Coffee", "Good 1", "Good 2", "Good 3", "Good 4"]);
+});
+
+test("merge: a sixth result is not a match, and is only a candidate if the nearby search found it too", () => {
+  const results = Array.from({ length: 7 }, (_, index) => cafeAt(`Result ${index + 1}`, 100 + 10 * index));
+  const sixth = results[5];
+  const merged = mergeCafesWithMatches({ start: START, radiusMeters: 800, nearbyCafes: [sixth], cafesByAspectId: { "cozy-quiet": results }, selectedAspectIds: ["cozy-quiet"] });
+  assert.deepEqual(names(merged), ["Result 1", "Result 2", "Result 3", "Result 4", "Result 5", "Result 6"]);
+  assert.deepEqual(merged.find((cafe) => cafe.name === "Result 6").matchedAspectIds, [], "found nearby, but not a top-five match");
+  assert.deepEqual(merged.find((cafe) => cafe.name === "Result 5").matchedAspectIds, ["cozy-quiet"]);
+  assert.ok(!merged.some((cafe) => cafe.name === "Result 7"));
+});
+
+test("merge: a high rating alone no longer counts as matching 'good coffee'", () => {
+  const loved = cafeAt("Loved", 100, 0, { rating: 4.9, ratingCount: 3000 });
+  const merged = mergeCafesWithMatches({ start: START, radiusMeters: 800, nearbyCafes: [loved], cafesByAspectId: { "good-coffee": [] }, selectedAspectIds: ["good-coffee"] });
+  assert.deepEqual(merged[0].matchedAspectIds, []);
 });
 
 test("fit score: more matched aspects always beats a better coffee score", () => {

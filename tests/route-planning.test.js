@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   haversineDistanceMeters,
+  boundingBoxAround,
   loopLengthMeters,
   orderStopsForShortestLoop,
   estimateStraightLineLegs,
@@ -17,6 +18,15 @@ const cafeAt = (name, lat, lng) => ({ placeId: name, name, location: { lat, lng 
 test("haversine: one degree of latitude is about 111 km", () => {
   const meters = haversineDistanceMeters({ lat: 0, lng: 0 }, { lat: 1, lng: 0 });
   assert.ok(Math.abs(meters - 111_195) < 50, `got ${meters}`);
+});
+
+test("bounding box: reaches exactly the radius north, south, east and west", () => {
+  const center = { lat: 40.7336, lng: -74.0027 }; // New York: a degree of longitude is shorter than one of latitude here
+  const box = boundingBoxAround(center, 810);
+  const edges = [{ lat: box.north, lng: center.lng }, { lat: box.south, lng: center.lng }, { lat: center.lat, lng: box.east }, { lat: center.lat, lng: box.west }];
+  for (const edge of edges) assert.ok(Math.abs(haversineDistanceMeters(center, edge) - 810) < 1, JSON.stringify(edge));
+  assert.ok(box.north > box.south && box.east > box.west);
+  assert.ok(box.east - box.west > box.north - box.south, "wider in degrees of longitude than of latitude");
 });
 
 test("haversine: same point is zero", () => {

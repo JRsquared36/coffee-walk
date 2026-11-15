@@ -1,14 +1,16 @@
 // What the walker asked for, and which cafés and routes fit it best. Pure logic, unit-tested.
 //
 // How matching works (best effort, and shown to the user as such):
-//   - Google has no "cozy" or "coffee flight" field. For each aspect the user picks, the app asks
-//     Google's text search for that phrase near them. A café that shows up in that search "matches".
+//   - Google has no "cozy" field. For each aspect the user picks, the app asks Google's text search
+//     for that phrase inside the walking area. Google returns up to 20 places, best match first.
+//     Only the first MATCHES_PER_PREFERENCE that qualify as coffee stops "match": in real tests,
+//     counting all 20 meant nearly every café matched something and the badges meant little.
 //   - Each café gets a fit score from how many chosen aspects it matches.
 //   - The app tries every group of stops within the chosen stop range and keeps the groups with the
 //     highest total fit whose walking loop fits the chosen time.
 
 import { haversineDistanceMeters, loopLengthMeters, orderStopsForShortestLoop, AVERAGE_WALKING_SPEED_METERS_PER_SECOND } from "./route-planning.js";
-import { coffeeFirstScore, normalizeName } from "./cafe-selection.js";
+import { coffeeFirstScore, normalizeName, reasonCafeIsExcluded } from "./cafe-selection.js";
 
 // `searchText` is what we ask Google's text search for. Edit freely; shorter, plainer phrases tend to work best.
 export const ASPECTS = [
@@ -31,9 +33,6 @@ export const STOP_RANGES = {
 };
 export const DEFAULT_STOP_RANGE_ID = "3-4";
 
-// "Good coffee" also counts a café that is simply rated very highly by many people.
-const GOOD_COFFEE_MINIMUM_RATING = 4.5;
-const GOOD_COFFEE_MINIMUM_REVIEWS = 100;
 // Streets aren't straight lines. Real walking routes are typically about this much longer.
 export const STREET_DETOUR_FACTOR = 1.3;
 // A walk a few minutes over the chosen time is fine (the owner's call), so it isn't reported as over.
@@ -52,9 +51,30 @@ export function searchRadiusMetersForWalk(maxWalkMinutes) {
   return Math.round(Math.min(Math.max(loopMeters / 3, MINIMUM_SEARCH_RADIUS_METERS), MAXIMUM_SEARCH_RADIUS_METERS));
 }
 
-// Combines the plain nearby search with each aspect's text search into one list without duplicates.
-// Every café gets `matchedAspectIds`: the chosen aspects whose search it appeared in.
-// Text search treats the area as a hint, not a limit, so results beyond the radius are dropped here.
+// How many of Google's results for a preference count as matching it.
+export const MATCHES_PER_PREFERENCE = 5;
+
+// The cafés that match one preference: the first few of Google's results (which come best match
+// first) that are within walking range and qualify as coffee stops. Places that would never become
+// a stop (too far, a chain, not coffee-first, a second branch of a café already counted) don't use
+// up one of the places.
+export function topMatchesForPreference(searchResults, { start, radiusMeters }) {
+  const matches = [];
+  const namesTaken = new Set();
+  for (const cafe of searchResults) {
+    if (matches.length === MATCHES_PER_PREFERENCE) break;
+    if (haversineDistanceMeters(start, cafe.location) > radiusMeters) continue; // the search box's corners reach past the radius
+    if (reasonCafeIsExcluded(cafe) !== null) continue;
+    const name = normalizeName(cafe.name);
+    if (name !== "" && namesTaken.has(name)) continue;
+    namesTaken.add(name);
+    matches.push(cafe);
+  }
+  return matches;
+}
+
+// Combines the plain nearby search with each chosen preference's matches into one list without
+// duplicates. Every café gets `matchedAspectIds`: the chosen preferences it matches.
 export function mergeCafesWithMatches({ start, radiusMeters, nearbyCafes, cafesByAspectId, selectedAspectIds }) {
   const cafesByPlaceId = new Map();
   const include = (cafe) => {
@@ -63,16 +83,9 @@ export function mergeCafesWithMatches({ start, radiusMeters, nearbyCafes, cafesB
   };
   nearbyCafes.forEach(include);
   for (const aspectId of selectedAspectIds) {
-    for (const cafe of cafesByAspectId[aspectId] ?? []) {
-      if (haversineDistanceMeters(start, cafe.location) > radiusMeters) continue;
+    for (const cafe of topMatchesForPreference(cafesByAspectId[aspectId] ?? [], { start, radiusMeters })) {
       const merged = include(cafe);
       if (!merged.matchedAspectIds.includes(aspectId)) merged.matchedAspectIds.push(aspectId);
-    }
-  }
-  if (selectedAspectIds.includes("good-coffee")) {
-    for (const cafe of cafesByPlaceId.values()) {
-      const isHighlyRated = cafe.rating >= GOOD_COFFEE_MINIMUM_RATING && cafe.ratingCount >= GOOD_COFFEE_MINIMUM_REVIEWS;
-      if (isHighlyRated && !cafe.matchedAspectIds.includes("good-coffee")) cafe.matchedAspectIds.push("good-coffee");
     }
   }
   return [...cafesByPlaceId.values()];
