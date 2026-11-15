@@ -28,7 +28,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- Layout ---------- */
 /* Wide screens: the panel is a sidebar on the left, the map fills the rest. */
 .layout { display: flex; flex-direction: row-reverse; height: 100vh; }
-.map { flex: 1; height: 100%; }
+.map-area { flex: 1; height: 100%; }
+/* Never position or size #map directly: Google's script puts "position: relative" on it. Style .map-area. */
+.map { width: 100%; height: 100%; }
 .panel {
   width: 400px; flex-shrink: 0;
   display: flex; flex-direction: column;
@@ -49,7 +51,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   body { overflow: hidden; }   /* the sheet scrolls, the page doesn't */
   .layout { display: block; height: auto; }
   /* The map stops where the sheet starts (js/bottom-sheet.js sets --map-bottom), so Google's logo stays visible. */
-  .map { position: fixed; inset: 0 0 var(--map-bottom, 50dvh) 0; height: auto; }
+  .map-area { position: fixed; inset: 0 0 var(--map-bottom, 50dvh) 0; height: auto; }
   .panel {
     position: fixed; left: 0; right: 0; bottom: 0;
     width: auto; height: var(--sheet-height, 55dvh);
