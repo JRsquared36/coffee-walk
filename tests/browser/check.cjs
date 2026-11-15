@@ -249,8 +249,12 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     check("start button visible without scrolling", await page.evaluate(() => { const r = document.querySelector("#start-walk-button").getBoundingClientRect(); return r.top > 0 && r.bottom < 844; }));
     await page.screenshot({ path: `${SCRATCH}/sheet-phone-1-start.png` });
 
+    // Record how tall the map is each time the app zooms to the route.
+    await page.evaluate(() => { window.__mapHeightAtZoom = []; window.__map.fitBounds = (_bounds, margin) => window.__mapHeightAtZoom.push({ height: Math.round(document.querySelector("#map").getBoundingClientRect().height), margin }); });
     await startWalk(page); await settle();
     check("sheet drops to half once the route is drawn", (await sheetHeight()) === 464, String(await sheetHeight()));
+    const zooms = await page.evaluate(() => window.__mapHeightAtZoom);
+    check("map zooms to the route after the sheet has dropped, not while it covers the map", zooms.length === 1 && zooms[0].height >= 380 && zooms[0].margin === 48, JSON.stringify(zooms));
     check("straight-line fallback noted and dashed", (await page.textContent("#route-source-note")).includes("straight lines") && await page.evaluate(() => window.__lastLine.strokeOpacity === 0 && !!window.__lastLine.icons));
     check("first stop card visible without scrolling", await page.evaluate(() => { const r = document.querySelector(".stop").getBoundingClientRect(); return r.top > 0 && r.top < 844 - 60; }));
     await page.screenshot({ path: `${SCRATCH}/sheet-phone-2-walk.png` });
