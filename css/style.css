@@ -136,6 +136,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .chip input:checked + span { background: var(--color-bg-brand); color: var(--color-text-on-brand); }
 .chip input:focus-visible + span { outline: 2px solid var(--color-border-strong); outline-offset: 2px; }
+/* A chip that can't be chosen right now, e.g. the limit of preferences is reached. */
+.chip input:disabled { cursor: default; }
+.chip input:disabled + span { opacity: 0.4; }
+.label-hint { font: var(--text-caption); color: var(--color-text-secondary); }
 
 /* ---------- Badge ---------- */
 .badge-row { display: flex; gap: var(--spacing-xs); flex-wrap: wrap; }

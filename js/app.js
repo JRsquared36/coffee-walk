@@ -101,7 +101,8 @@ function showView(viewName) {
 
 // The preference chips come from the ASPECTS list, so adding an aspect there is the only change needed.
 function renderAspectChips() {
-  document.getElementById("aspect-chips").replaceChildren(
+  const chipGroup = document.getElementById("aspect-chips");
+  chipGroup.replaceChildren(
     ...ASPECTS.map((aspect) => {
       const checkbox = createElement("input");
       checkbox.type = "checkbox";
@@ -112,6 +113,18 @@ function renderAspectChips() {
       return chip;
     }),
   );
+  chipGroup.addEventListener("change", limitAspectChoices);
+}
+
+// Each chosen preference costs one Google search and thins out what a "match" means, so only a
+// few can be chosen (the number is data-max-choices in index.html). Once the limit is reached the
+// other chips are switched off until one is unticked.
+function limitAspectChoices() {
+  const chipGroup = document.getElementById("aspect-chips");
+  const maxChoices = Number(chipGroup.dataset.maxChoices) || Infinity;
+  const checkboxes = [...chipGroup.querySelectorAll('input[name="aspect"]')];
+  const hasReachedLimit = checkboxes.filter((checkbox) => checkbox.checked).length >= maxChoices;
+  checkboxes.forEach((checkbox) => { checkbox.disabled = hasReachedLimit && !checkbox.checked; });
 }
 
 async function startApp() {

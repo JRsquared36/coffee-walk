@@ -318,17 +318,28 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     check("8 preference chips from the ASPECTS list", chips.length === 8 && chips.includes("Coffee flight") && chips.includes("Cozy & quiet"), chips.join(", "));
     check("walk-length and stop-range chips, with defaults", await page.evaluate(() => document.querySelectorAll('input[name="walk-minutes"]').length === 4 && document.querySelectorAll('input[name="stop-range"]').length === 3 && document.querySelector('input[name="walk-minutes"]:checked').value === "30" && document.querySelector('input[name="stop-range"]:checked').value === "3-4"));
     const pick = (label) => page.click(`#aspect-chips .chip:has-text("${label}")`);
-    await pick("Cozy & quiet"); await pick("Coffee flight"); await pick("Lively & buzzy");
-    check("chosen preference chips look selected", (await page.evaluate(() => [...document.querySelectorAll('input[name="aspect"]:checked + span')].filter(e => getComputedStyle(e).backgroundColor === "rgb(111, 78, 55)").length)) === 3);
+    await pick("Cozy & quiet"); await pick("Coffee flight");
+    check("chosen preference chips look selected", (await page.evaluate(() => [...document.querySelectorAll('input[name="aspect"]:checked + span')].filter(e => getComputedStyle(e).backgroundColor === "rgb(111, 78, 55)").length)) === 2);
+    // At most two preferences.
+    const aspectState = () => page.evaluate(() => { const boxes = [...document.querySelectorAll('input[name="aspect"]')]; return { checked: boxes.filter(b => b.checked).length, disabled: boxes.filter(b => b.disabled).length, total: boxes.length }; });
+    let aspects = await aspectState();
+    check("with two chosen, every other chip is switched off", aspects.checked === 2 && aspects.disabled === aspects.total - 2, JSON.stringify(aspects));
+    await page.click('#aspect-chips .chip:has-text("Lively & buzzy")', { force: true }).catch(() => {});
+    check("a third preference can't be chosen", (await aspectState()).checked === 2);
+    check("switched-off chips look faded", (await page.evaluate(() => getComputedStyle(document.querySelector('input[name="aspect"]:disabled + span')).opacity)) === "0.4");
+    await pick("Coffee flight");
+    aspects = await aspectState();
+    check("unticking one switches the others back on", aspects.checked === 1 && aspects.disabled === 0, JSON.stringify(aspects));
+    await pick("Coffee flight");
+    check("the hint says how many can be chosen", (await page.textContent("#aspects-label")).includes("up to 2"));
     await startWalk(page);
     const textRequests = await page.evaluate(() => window.__textRequests.map(r => ({ q: r.textQuery, radius: r.locationBias.radius, max: r.maxResultCount })));
-    check("one text search per chosen preference, near the start", textRequests.length === 3 && textRequests.every(r => r.radius === 810 && r.max === 20), JSON.stringify(textRequests));
+    check("one text search per chosen preference, near the start", textRequests.length === 2 && textRequests.every(r => r.radius === 810 && r.max === 20), JSON.stringify(textRequests));
     const names = await page.$$eval(".stop-name", (els) => els.map((e) => e.textContent));
     check("matching cafés are chosen first", ["Café 0", "Café 1", "Café 4"].every(n => names.includes(n)) && names.length === 4, names.join(" | "));
     check("bagel shop and far-away café from text search are not stops", !names.includes("Hudson Bagels") && !names.includes("Far Away Roasters"));
     const cardOf = (name) => page.evaluate((n) => [...document.querySelectorAll(".stop")].find(c => c.querySelector(".stop-name").textContent === n).textContent, name);
     check("card shows what it matched", (await cardOf("Café 0")).includes("Cozy & quiet") && !(await cardOf("Café 0")).includes("Coffee flight") && (await cardOf("Café 4")).includes("Coffee flight"));
-    check("status says which preference no stop matched", (await page.textContent("#status-message")).includes("No stop on this walk matched: Lively & buzzy"), await page.textContent("#status-message"));
     await page.click(`.stop >> nth=${names.indexOf("Café 4")}`);
     const matches = await page.textContent(".detail-matches");
     check("detail explains matches and misses", matches.includes("Matches what you asked for") && matches.includes("Coffee flight") && matches.includes("No sign of") && matches.includes("Cozy & quiet") && matches.includes("treat it as a hint"), matches);
@@ -338,18 +349,21 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     await page.click("#new-route-button"); await page.waitForTimeout(250);
     const after = (await page.$$eval(".stop-name", (els) => els.map((e) => e.textContent))).sort().join("|");
     check("new route shows a different group of stops", before !== after, after);
-    check("new route does not search Google again", await page.evaluate(() => window.__searchRequests.length === 1 && window.__textRequests.length === 3));
+    check("new route does not search Google again", await page.evaluate(() => window.__searchRequests.length === 1 && window.__textRequests.length === 2));
     for (let i = 0; i < 4; i++) { await page.click("#new-route-button"); await page.waitForTimeout(120); }
     check("after the last option, back to the best one", (await page.$$eval(".stop-name", (els) => els.map((e) => e.textContent))).sort().join("|") === before);
     // Change preferences keeps the choices.
     await page.click("#start-over-button");
-    check("change preferences → setup view with choices kept", (await view(page)) === "setup" && (await page.$$('input[name="aspect"]:checked')).length === 3);
+    check("change preferences → setup view with choices kept", (await view(page)) === "setup" && (await page.$$('input[name="aspect"]:checked')).length === 2);
+    // Swap one choice for a preference the fake finds nothing for.
+    await pick("Coffee flight"); await pick("Lively & buzzy");
     // 15 minutes: the fake route takes ~23 min for 4 stops, so the app must say it's over.
     await page.check('input[name="walk-minutes"][value="15"]');
     await startWalk(page);
     check("15 min walk searches within 405 m", (await page.evaluate(() => window.__searchRequests.at(-1).locationRestriction.radius)) === 405);
     const status = await page.textContent("#status-message");
     check("says plainly when the walk is over the time limit", /over your 15 min/.test(status), status);
+    check("status says which preference no stop matched", status.includes("No stop on this walk matched: Lively & buzzy"), status);
     check("no page errors (preferences)", errors.length === 0, errors.join("; "));
     await context.close();
   }
