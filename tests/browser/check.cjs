@@ -315,7 +315,7 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
   {
     const { page, context, errors } = await openPage(browser);
     const chips = await page.$$eval("#aspect-chips .chip span", (els) => els.map((e) => e.textContent));
-    check("8 preference chips from the ASPECTS list", chips.length === 8 && chips.includes("Coffee flight") && chips.includes("Cozy & quiet"), chips.join(", "));
+    check("7 preference chips from the ASPECTS list", chips.length === 7 && !chips.includes("Good conversation") && chips.includes("Coffee flight") && chips.includes("Cozy & quiet"), chips.join(", "));
     check("walk-length and stop-range chips, with defaults", await page.evaluate(() => document.querySelectorAll('input[name="walk-minutes"]').length === 4 && document.querySelectorAll('input[name="stop-range"]').length === 3 && document.querySelector('input[name="walk-minutes"]:checked').value === "30" && document.querySelector('input[name="stop-range"]:checked').value === "3-4"));
     const pick = (label) => page.click(`#aspect-chips .chip:has-text("${label}")`);
     await pick("Cozy & quiet"); await pick("Coffee flight"); await pick("Lively & buzzy");
