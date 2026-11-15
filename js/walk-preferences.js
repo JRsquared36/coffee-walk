@@ -13,7 +13,6 @@ import { coffeeFirstScore, normalizeName } from "./cafe-selection.js";
 // `searchText` is what we ask Google's text search for. Edit freely; shorter, plainer phrases tend to work best.
 export const ASPECTS = [
   { id: "good-coffee", label: "Good coffee", searchText: "specialty coffee roaster" },
-  { id: "coffee-flight", label: "Coffee flight", searchText: "coffee flight tasting" },
   { id: "unique-space", label: "Unique space", searchText: "coffee shop with unique interior" },
   { id: "outdoor-seating", label: "Outdoor seating", searchText: "coffee shop with outdoor seating" },
   { id: "cozy-quiet", label: "Cozy & quiet", searchText: "cozy quiet coffee shop" },

@@ -1,6 +1,6 @@
 # Coffee Walk
 
-A walking loop through coffee shops that fit your mood. Choose what you're after (good coffee, a coffee flight, cozy and quiet…), how long you want to walk and how many stops, then tap **Start a coffee walk**: the app finds you, picks the coffee shops that fit best, puts them in the shortest loop order, and draws a walking route that starts and ends where you are. Each stop shows which of your choices it matched. At each stop, tap **I'm here** to rate it and leave a note — you can only check in when you're actually at the café. Your log is saved in your browser.
+A walking loop through coffee shops that fit your mood. Choose what you're after (good coffee, outdoor seating, cozy and quiet…), up to two things, how long you want to walk and how many stops, then tap **Start a coffee walk**: the app finds you, picks the coffee shops that fit best, puts them in the shortest loop order, and draws a walking route that starts and ends where you are. Each stop shows which of your choices it matched. At each stop, tap **I'm here** to rate it and leave a note — you can only check in when you're actually at the café. Your log is saved in your browser.
 
 Live: https://jrsquared36.github.io/coffee-walk/
 
