@@ -35,9 +35,10 @@
             <p class="text-secondary">A walking loop through coffee shops that fit your mood.</p>
           </header>
           <div class="preference">
-            <span id="aspects-label" class="label">What are you in the mood for?</span>
+            <span id="aspects-label" class="label">What are you in the mood for? <span class="label-hint">Pick up to 2.</span></span>
             <!-- Filled in by js/app.js from the ASPECTS list in js/walk-preferences.js, so labels live in one place. -->
-            <div id="aspect-chips" class="chip-group" role="group" aria-labelledby="aspects-label"></div>
+            <!-- data-max-choices is the limit js/app.js enforces; keep it in step with the hint above. -->
+            <div id="aspect-chips" class="chip-group" role="group" aria-labelledby="aspects-label" data-max-choices="2"></div>
           </div>
           <div class="preference">
             <span id="walk-minutes-label" class="label">How long a walk?</span>
