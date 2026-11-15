@@ -40,6 +40,12 @@ const server = http.createServer((request, response) => {
 let SITE_URL;
 const START = { latitude: 40.7128, longitude: -74.006 };
 const WEEK = ["Monday: 7:00 AM – 5:00 PM","Tuesday: 7:00 AM – 5:00 PM","Wednesday: 7:00 AM – 5:00 PM","Thursday: 7:00 AM – 5:00 PM","Friday: 7:00 AM – 5:00 PM","Saturday: 8:00 AM – 4:00 PM","Sunday: Closed"];
+// Opening periods as real Google returns them: days from Sunday = 0, in the café's own time zone.
+// A period with no close means "always open". The closed one is a single minute three days from now.
+const CAFE_UTC_OFFSET_MINUTES = -300; // New York in winter
+const cafeDayNow = new Date(Date.now() + CAFE_UTC_OFFSET_MINUTES * 60_000).getUTCDay();
+const ALWAYS_OPEN_PERIOD = { open: { day: 0, hour: 0, minute: 0 } };
+const CLOSED_NOW_PERIOD = { open: { day: (cafeDayNow + 3) % 7, hour: 3, minute: 0 }, close: { day: (cafeDayNow + 3) % 7, hour: 3, minute: 1 } };
 const CAFES = Array.from({ length: 9 }, (_, i) => ({
   id: `place-${i}`,
   displayName: i === 2 ? `<img src=x onerror="window.__xss=1">Evil Café` : i === 7 ? "Starbucks" : i === 8 ? "Hudson Bagels" : `Café ${i}`,
@@ -52,7 +58,9 @@ const CAFES = Array.from({ length: 9 }, (_, i) => ({
   businessStatus: i === 6 ? "CLOSED_PERMANENTLY" : "OPERATIONAL",
   formattedAddress: `${100 + i} Main St, New York, NY`,
   priceLevel: "MODERATE",
-  regularOpeningHours: i === 3 ? null : { weekdayDescriptions: WEEK },
+  // Café 3 has no hours at all; Café 5 is closed right now; the rest never close.
+  regularOpeningHours: i === 3 ? null : { weekdayDescriptions: WEEK, periods: i === 5 ? [CLOSED_NOW_PERIOD] : [ALWAYS_OPEN_PERIOD] },
+  utcOffsetMinutes: CAFE_UTC_OFFSET_MINUTES,
   websiteURI: `https://cafe${i}.example`,
   googleMapsURI: `https://maps.google.com/?cid=${i}`,
 }));
@@ -61,7 +69,7 @@ const CAFES = Array.from({ length: 9 }, (_, i) => ({
 // AdvancedMarkerElement in "marker" with a .content element; Place.searchNearby returns { places }.
 const fakeGoogleScript = `
   window.__markers = new Set(); window.__lines = 0; window.__panTo = [];
-  const places = ${JSON.stringify(CAFES)}.map(p => ({ ...p, location: { lat: () => p.lat, lng: () => p.lng }, isOpen: async () => true }));
+  const places = ${JSON.stringify(CAFES)}.map(p => ({ ...p, location: { lat: () => p.lat, lng: () => p.lng } })); // no isOpen(): that exists only in Google's beta channel
   const libs = {
     maps: {
       // Like the real Map, this sets inline position/overflow on its element, which overrides our CSS.
@@ -86,7 +94,7 @@ const fakeGoogleScript = `
     }, searchNearby: async (req) => {
       window.__searchRequests = (window.__searchRequests || []).concat([req]);
       if (window.__failDetailedSearch && req.fields.includes("rating")) throw new Error("PERMISSION_DENIED: field not allowed");
-      return { places: places.map(p => Object.fromEntries(Object.entries(p).filter(([k]) => k === "isOpen" || k === "id" || k === "location" || req.fields.includes(k)))) };
+      return { places: places.map(p => Object.fromEntries(Object.entries(p).filter(([k]) => k === "id" || k === "location" || req.fields.includes(k)))) };
     } } },
   };
   window.google = { maps: { importLibrary: async (name) => libs[name] } };
@@ -154,8 +162,13 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     check("totals shown", (await page.textContent("#walk-totals")).includes("4 stops"));
     check("5 markers, 1 line", (await page.evaluate(() => window.__markers.size)) === 5 && (await page.evaluate(() => window.__lines)) === 1);
     check("cards are buttons with no nested buttons or links", await page.evaluate(() => [...document.querySelectorAll(".stop")].every(c => c.tagName === "BUTTON" && !c.querySelector("button, a"))));
-    const cardText = await page.evaluate(() => [...document.querySelectorAll(".stop")].find(c => !c.textContent.includes("Café 3")).textContent);
+    const cardOfCafe = (name) => page.evaluate((n) => [...document.querySelectorAll(".stop")].find(c => c.querySelector(".stop-name").textContent === n)?.textContent ?? "(not a stop)", name);
+    const cardText = await page.evaluate(() => [...document.querySelectorAll(".stop")].find(c => !/Café [35]/.test(c.textContent)).textContent);
     check("card shows rating, price, badges, hours, leg", ["★", "$$", "Coffee shop", "Open now", "Today", "from"].every(t => cardText.includes(t)), cardText);
+    const closedCard = await cardOfCafe("Café 5");
+    check("a café outside its opening hours shows Closed now", closedCard.includes("Closed now") && !closedCard.includes("Open now"), closedCard);
+    const noHoursCard = await cardOfCafe("Café 3");
+    check("a café with no hours shows neither Open nor Closed", !noHoursCard.includes("Open now") && !noHoursCard.includes("Closed now"), noHoursCard);
 
     // Card → detail
     await page.click(".stop >> nth=1");
