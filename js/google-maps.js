@@ -32,7 +32,7 @@ const DETAILED_PLACE_FIELDS = [
   "formattedAddress",
   "priceLevel",
   "regularOpeningHours",
-  "utcOffsetMinutes", // needed by isOpen() to work out "open now" in the café's time zone
+  "utcOffsetMinutes", // the café's time zone, needed to work out "open now" from its opening hours
   "websiteURI",
   "googleMapsURI",
   "primaryType", // e.g. "coffee_shop", "cafe", "bakery": what Google says the place mainly is
@@ -41,7 +41,7 @@ const DETAILED_PLACE_FIELDS = [
 const BASIC_PLACE_FIELDS = ["id", "displayName", "location"];
 
 // Returns cafés as plain objects: { placeId, name, location: {lat, lng}, rating, ratingCount,
-// address, priceLevel, weeklyHours, isOpenNow, websiteUrl, googleMapsUrl, primaryType, typeLabel }.
+// address, priceLevel, weeklyHours, openingPeriods, utcOffsetMinutes, websiteUrl, googleMapsUrl, primaryType, typeLabel }.
 // Any detail may be null. Deciding which ones are real coffee stops happens in cafe-selection.js.
 export async function searchNearbyCafes(center, radiusMeters) {
   const { Place } = await google.maps.importLibrary("places");
@@ -71,7 +71,7 @@ export async function searchNearbyCafes(center, radiusMeters) {
     }
   }
   const openPlaces = places.filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL");
-  return Promise.all(openPlaces.map(toCafe));
+  return openPlaces.map(toCafe);
 }
 
 // Cafés Google's text search returns for a phrase like "cozy quiet coffee shop" near `center`.
@@ -87,10 +87,10 @@ export async function searchCafesByText(center, radiusMeters, textQuery) {
     maxResultCount: 20,
   });
   const openPlaces = places.filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL");
-  return Promise.all(openPlaces.map(toCafe));
+  return openPlaces.map(toCafe);
 }
 
-async function toCafe(place) {
+function toCafe(place) {
   return {
     placeId: place.id,
     name: place.displayName ?? "Unnamed café",
@@ -100,7 +100,8 @@ async function toCafe(place) {
     address: place.formattedAddress ?? null,
     priceLevel: place.priceLevel ?? null,
     weeklyHours: place.regularOpeningHours?.weekdayDescriptions ?? null,
-    isOpenNow: await isOpenNowOrUnknown(place),
+    openingPeriods: place.regularOpeningHours?.periods?.map(toPlainPeriod) ?? null,
+    utcOffsetMinutes: place.utcOffsetMinutes ?? null,
     websiteUrl: place.websiteURI ?? null,
     googleMapsUrl: place.googleMapsURI ?? null,
     primaryType: place.primaryType ?? null,
@@ -108,15 +109,11 @@ async function toCafe(place) {
   };
 }
 
-// isOpen() resolves to true/false, or undefined when Google has no hours. It throws if the hours
-// fields weren't fetched (the basic-fields retry), so treat any failure as "unknown".
-async function isOpenNowOrUnknown(place) {
-  if (!place.regularOpeningHours || typeof place.isOpen !== "function") return null;
-  try {
-    return (await place.isOpen()) ?? null;
-  } catch {
-    return null;
-  }
+// Google's opening period as plain data: when it opens and closes, with days counted from Sunday = 0.
+// `close` is missing for a place that never closes. cafe-details.js turns these into "Open now".
+function toPlainPeriod(period) {
+  const toPlainPoint = (point) => ({ day: point.day, hour: point.hour, minute: point.minute });
+  return { open: toPlainPoint(period.open), close: period.close ? toPlainPoint(period.close) : null };
 }
 
 const ROUTES_ENDPOINT = "https://routes.googleapis.com/directions/v2:computeRoutes";
