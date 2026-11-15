@@ -16,7 +16,6 @@ export const ASPECTS = [
   { id: "coffee-flight", label: "Coffee flight", searchText: "coffee flight tasting" },
   { id: "unique-space", label: "Unique space", searchText: "coffee shop with unique interior" },
   { id: "outdoor-seating", label: "Outdoor seating", searchText: "coffee shop with outdoor seating" },
-  { id: "good-conversation", label: "Good conversation", searchText: "quiet coffee shop for conversation" },
   { id: "cozy-quiet", label: "Cozy & quiet", searchText: "cozy quiet coffee shop" },
   // "lively busy coffee shop" returned a single restaurant on real Google; this returns coffee shops.
   { id: "lively-buzzy", label: "Lively & buzzy", searchText: "lively coffee shop" },
