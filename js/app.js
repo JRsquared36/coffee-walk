@@ -64,6 +64,7 @@ const walk = {
   notices: [],          // things to tell the walker about this plan, e.g. a preference search that failed
   orderedStops: [],
   legs: [],             // walking distance/time for each leg of the current walk
+  path: [],             // the points of the route line, used to zoom the map to the walk
 };
 let googleLibraries;    // { map, Polyline, LatLngBounds, AdvancedMarkerElement }
 let selectedStopIndex = null; // which stop's details are open, or null
@@ -311,6 +312,7 @@ async function buildAndShowWalk() {
 
   walk.legs = legs;
   drawWalkOnMap(path, usedRealStreets);
+  walk.path = path; // after drawing, because drawing first clears the previous walk (and its path)
   renderStopList();
 
   const totalMeters = legs.reduce((sum, leg) => sum + leg.distanceMeters, 0);
@@ -320,6 +322,7 @@ async function buildAndShowWalk() {
     ? "Walking route by Google. Times don't include time spent in cafés."
     : "Couldn't get a street route, so these are straight lines with estimated times.";
   showView("walk");
+  zoomMapToWalkAfterLayout();
   showStatus(walkNotices(totalSeconds).join(" "));
 }
 
@@ -353,7 +356,7 @@ function setButtonsBusy(isBusy) {
 // ---------- Map drawing ----------
 
 function drawWalkOnMap(path, usedRealStreets) {
-  const { map, Polyline, LatLngBounds, AdvancedMarkerElement } = googleLibraries;
+  const { map, Polyline, AdvancedMarkerElement } = googleLibraries;
   clearWalkFromMap();
 
   // Pins are our own elements (styled by .map-pin in css/style.css) placed inside Google's markers.
@@ -383,9 +386,25 @@ function drawWalkOnMap(path, usedRealStreets) {
       };
   drawnRouteLine = new Polyline({ map, path, ...lineStyle });
 
+}
+
+// Zooms the map so the whole route is visible, with some breathing room around it.
+function zoomMapToWalk() {
+  if (walk.path.length === 0) return;
+  const { map, LatLngBounds } = googleLibraries;
+  const mapBox = document.getElementById("map").getBoundingClientRect();
+  // On a small map, a fixed 48px margin on every side can leave no room for the route at all.
+  const marginPx = Math.min(48, Math.floor(Math.min(mapBox.width, mapBox.height) / 5));
   const bounds = new LatLngBounds();
-  path.forEach((point) => bounds.extend(point));
-  map.fitBounds(bounds, 48);
+  walk.path.forEach((point) => bounds.extend(point));
+  map.fitBounds(bounds, marginPx);
+}
+
+// On phones, showing the walk shrinks the sheet from full to half, which makes the map taller.
+// Zooming before the browser has applied that would fit the route to the old, nearly hidden map.
+// Two animation frames is enough for the browser to lay out and for Google to notice the new size.
+function zoomMapToWalkAfterLayout() {
+  requestAnimationFrame(() => requestAnimationFrame(zoomMapToWalk));
 }
 
 function clearWalkFromMap() {
@@ -395,6 +414,7 @@ function clearWalkFromMap() {
   stopMarkers = [];
   drawnRouteLine = null;
   selectedStopIndex = null;
+  walk.path = [];
 }
 
 // ---------- Stop list ----------
