@@ -71,6 +71,23 @@ Ideas not yet built, in no fixed order. Ask the owner which is next:
 - Size and position `.map-area`, never `#map`: Google's script sets `position: relative` on the map
   element, which overrides our CSS (this once collapsed the map to zero height on phones).
 
+## Shared check-ins (friends beta, in progress)
+- Database: Supabase (free plan). Sign-in: Google only. Access: only emails in `beta_members`.
+  Every beta member sees every check-in; each person changes only their own.
+- Everything about it is in `supabase/`: the schema and row-level security rules in
+  `supabase/migrations/`, their tests, and the owner's setup steps in `supabase/README.md`.
+- The app reaches the database with a public key, so **the rules in the database are the only
+  protection**. Every table has row-level security on. A new table without rules is open to everyone.
+- Never edit a migration that has been run on the real project; add a new numbered file.
+- Run `npm run test:database` (needs a local throwaway Postgres) after any change to the rules,
+  and weaken the rule on purpose to confirm a test fails.
+- Store Google place IDs only. Never store a café's name, address or hours in the database.
+- Never ask for, print or commit the Supabase secret (service_role) key, the database password or
+  the Google client secret. The project URL and publishable key are public.
+- Still to build, one PR each, screens designed in Figma first: sign-in and username; saving
+  check-ins to the database (importing the local log); the feed and café page; friends' ratings on
+  walk stops.
+
 ## Design system
 - Source of truth: the Figma file "Coffee Walk — Design System"
   (https://www.figma.com/design/TAUz8uhQSr0vvbJJAC6Vac). Warm and cozy, light mode only, phone first.

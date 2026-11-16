@@ -59,5 +59,6 @@ Drives the real page in a headless browser at desktop and phone sizes, against a
 | `.github/workflows/deploy.yml` | Tests, injects the key secret, deploys to Pages |
 | `manifest.webmanifest` | Tells a phone how to install the app: name, icon, colours, full-screen |
 | `icons/` | The app icon: `icon.svg` is the source, the PNGs are rendered from it |
+| `supabase/` | The shared check-ins database for the friends beta: tables, security rules, their tests, and setup steps. See `supabase/README.md` |
 | `tests/` | Unit tests for the pure logic and the log |
 | `tests/browser/check.cjs` | Browser checks against a fake Google Maps (`npm run test:browser`) |
