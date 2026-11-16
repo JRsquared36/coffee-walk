@@ -279,6 +279,10 @@ async function findCafesNear(start) {
     return false;
   }
 
+  // Say so when closed cafés were left out, so a missing favourite isn't a mystery.
+  const closedCount = selection.excludedCountsByReason["closed now"] ?? 0;
+  if (closedCount > 0) notices.push(`Left out ${closedCount} coffee shop${closedCount === 1 ? "" : "s"} nearby that ${closedCount === 1 ? "is" : "are"} closed right now.`);
+
   walk.preferences = preferences;
   walk.notices = notices;
   walk.options = rankWalkOptions({
@@ -298,6 +302,7 @@ function describeExclusions(excludedCountsByReason) {
     "chain": (count) => `${count} chain${count === 1 ? "" : "s"}`,
     "not coffee-first": (count) => `${count} not coffee-first`,
     "below quality floor": (count) => `${count} below ${MINIMUM_RATING}★ / ${MINIMUM_REVIEW_COUNT} reviews`,
+    "closed now": (count) => `${count} closed right now`,
   };
   const parts = Object.entries(excludedCountsByReason).map(([reason, count]) => labels[reason](count));
   return parts.length > 0 ? ` (skipped: ${parts.join(", ")})` : "";
