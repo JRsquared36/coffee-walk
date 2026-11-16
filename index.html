@@ -5,6 +5,17 @@
   <!-- viewport-fit=cover lets the sheet extend under the iPhone home bar; CSS adds padding there. -->
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Coffee Walk</title>
+  <!-- Installing to a phone's home screen. The manifest covers Android; the apple-* tags cover iPhones,
+       which read only some of the manifest. theme-color tints the phone's status bar. Its value repeats
+       --color-bg-page from css/tokens.css, because these tags can't read CSS variables. -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#fbf7f2">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Coffee Walk">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <!-- Fonts from Google Fonts. If they fail to load, tokens.css falls back to fonts already on the device. -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

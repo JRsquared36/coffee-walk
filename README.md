@@ -4,6 +4,16 @@ A walking loop through coffee shops that fit your mood. Choose what you're after
 
 Live: https://jrsquared36.github.io/coffee-walk/
 
+## Install on your phone
+
+Coffee Walk can sit on your home screen and open full screen, without the browser's address bar.
+
+- **iPhone (Safari):** open the site, tap the Share button, then **Add to Home Screen**.
+- **Android (Chrome):** open the site, tap the ⋮ menu, then **Add to Home screen** or **Install app**.
+
+It still needs a connection: there is no offline mode. The icon is `icons/icon.svg`; the PNG files
+beside it are rendered from it at 512, 192 and 180 pixels.
+
 ## Setup
 
 1. **Live site:** the key lives in the repository secret `GOOGLE_MAP_KEY` (Settings → Secrets and variables → Actions). On every push to `main`, `.github/workflows/deploy.yml` runs the tests, writes `js/config.js` from that secret, and deploys. Pages must be set to **Settings → Pages → Source: GitHub Actions**.
@@ -47,5 +57,7 @@ Drives the real page in a headless browser at desktop and phone sizes, against a
 | `js/coffee-log.js` | Your check-ins, saved in localStorage |
 | `js/config.example.js` | Template for `js/config.js` (your key; not committed) |
 | `.github/workflows/deploy.yml` | Tests, injects the key secret, deploys to Pages |
+| `manifest.webmanifest` | Tells a phone how to install the app: name, icon, colours, full-screen |
+| `icons/` | The app icon: `icon.svg` is the source, the PNGs are rendered from it |
 | `tests/` | Unit tests for the pure logic and the log |
 | `tests/browser/check.cjs` | Browser checks against a fake Google Maps (`npm run test:browser`) |

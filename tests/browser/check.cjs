@@ -26,7 +26,7 @@ const SCRATCH = path.join(__dirname, "screenshots"); // gitignored
 fs.mkdirSync(SCRATCH, { recursive: true });
 
 // A tiny static file server for the repo, so the checks don't depend on anything else running.
-const CONTENT_TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json" };
+const CONTENT_TYPES = { ".html": "text/html", ".css": "text/css", ".js": "text/javascript", ".json": "application/json", ".png": "image/png", ".svg": "image/svg+xml", ".webmanifest": "application/manifest+json" };
 const server = http.createServer((request, response) => {
   const urlPath = decodeURIComponent(new URL(request.url, "http://localhost").pathname);
   const filePath = path.join(REPO_ROOT, urlPath === "/" ? "index.html" : urlPath);
@@ -432,6 +432,41 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     check("up to 5 minutes over: no over-time message", !/over your/.test(await page.textContent("#status-message")), await page.textContent("#status-message"));
     check("the setup caption mentions walks can run a few minutes over", (await page.evaluate(() => document.querySelector(".view--setup .caption").textContent)).includes("a few minutes over"));
     check("no page errors (time allowance)", errors.length === 0, errors.join("; "));
+    await context.close();
+  }
+
+  // ---- Installable to a phone's home screen ----
+  {
+    const context = await browser.newContext(); const page = await context.newPage();
+    await page.route("https://fonts.googleapis.com/**", (r) => r.abort());
+    await page.route("**/js/config.js", (r) => r.fulfill({ contentType: "text/javascript", body: 'export const GOOGLE_MAPS_API_KEY = "PASTE_YOUR_KEY_HERE";' }));
+    await page.goto(SITE_URL); await page.waitForTimeout(300);
+    const install = await page.evaluate(async () => {
+      const imageSize = (src) => new Promise((resolve) => { const image = new Image(); image.onload = () => resolve(`${image.naturalWidth}x${image.naturalHeight}`); image.onerror = () => resolve("failed to load"); image.src = src; });
+      const manifestLink = document.querySelector('link[rel="manifest"]');
+      const manifestResponse = await fetch(manifestLink.href);
+      const manifest = await manifestResponse.json();
+      const icons = [];
+      for (const icon of manifest.icons) icons.push({ declared: icon.sizes, purpose: icon.purpose, actual: await imageSize(new URL(icon.src, manifestLink.href).href) });
+      return {
+        manifestOk: manifestResponse.ok, manifest, icons,
+        appleIcon: await imageSize(document.querySelector('link[rel="apple-touch-icon"]').href),
+        favicon: await imageSize(document.querySelector('link[rel="icon"]').href),
+        themeColorTag: document.querySelector('meta[name="theme-color"]').content,
+        pageBackgroundToken: getComputedStyle(document.documentElement).getPropertyValue("--color-bg-page").trim(),
+        appleCapable: document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.content,
+        appleTitle: document.querySelector('meta[name="apple-mobile-web-app-title"]')?.content,
+        startUrl: new URL(manifest.start_url, manifestLink.href).href, scopeUrl: new URL(manifest.scope, manifestLink.href).href,
+      };
+    });
+    check("manifest loads and names the app", install.manifestOk && install.manifest.name === "Coffee Walk" && install.manifest.short_name.length <= 12, JSON.stringify(install.manifest).slice(0, 120));
+    check("manifest opens full screen, at the app's own address", install.manifest.display === "standalone" && install.startUrl === SITE_URL && install.scopeUrl === SITE_URL, `${install.manifest.display} ${install.startUrl}`);
+    check("every manifest icon loads at the size it declares", install.icons.length >= 2 && install.icons.every((icon) => icon.actual === icon.declared), JSON.stringify(install.icons));
+    check("manifest has 192 and 512 icons and a maskable one", ["192x192", "512x512"].every((size) => install.icons.some((icon) => icon.declared === size)) && install.icons.some((icon) => icon.purpose === "maskable"));
+    check("iPhone home-screen icon is 180x180, and iPhone tags are set", install.appleIcon === "180x180" && install.appleCapable === "yes" && install.appleTitle === "Coffee Walk", `${install.appleIcon} ${install.appleCapable} ${install.appleTitle}`);
+    check("browser tab icon loads", install.favicon === "192x192", install.favicon);
+    const sameColour = (a, b) => a.toLowerCase() === b.toLowerCase();
+    check("status-bar and splash colours match the page background token", sameColour(install.themeColorTag, install.pageBackgroundToken) && sameColour(install.manifest.theme_color, install.pageBackgroundToken) && sameColour(install.manifest.background_color, install.pageBackgroundToken), `${install.themeColorTag} ${install.manifest.theme_color} ${install.manifest.background_color} vs ${install.pageBackgroundToken}`);
     await context.close();
   }
 

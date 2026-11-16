@@ -3,7 +3,11 @@
    (Figma `color/bg/brand` = CSS `--color-bg-brand`), so design and code share names.
 
    Rule: components use the SEMANTIC tokens (--color-bg-brand), never the primitives
-   (--coffee-600) and never raw values. Then a rebrand or dark mode is a change here only. */
+   (--coffee-600) and never raw values. Then a rebrand or dark mode is a change here only.
+
+   Three places can't read these variables and repeat the values by hand. Change them together:
+   manifest.webmanifest (background_color, theme_color), the theme-color tag in index.html, and
+   icons/icon.svg. A browser check compares the first two against --color-bg-page. */
 
 :root {
   /* ---- Primitives: the raw palette. Don't use these directly in components. ---- */
