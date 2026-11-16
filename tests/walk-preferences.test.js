@@ -52,15 +52,15 @@ test("merge: no duplicates, matches recorded, far-away text results dropped", ()
     nearbyCafes: [near, both],
     cafesByAspectId: {
       "cozy-quiet": [both, cafeAt("Cozy Only", 300), cafeAt("Too Far", 5000)],
-      "coffee-flight": [both],
+      "unique-space": [both],
       "work-friendly": [cafeAt("Not Chosen", 100)], // searched earlier but not selected now
     },
-    selectedAspectIds: ["cozy-quiet", "coffee-flight"],
+    selectedAspectIds: ["cozy-quiet", "unique-space"],
   });
   assert.deepEqual(names(merged), ["Both", "Cozy Only", "Near"]);
   const byName = Object.fromEntries(merged.map((cafe) => [cafe.name, cafe.matchedAspectIds]));
   assert.deepEqual(byName.Near, []);
-  assert.deepEqual(byName.Both, ["cozy-quiet", "coffee-flight"]);
+  assert.deepEqual(byName.Both, ["cozy-quiet", "unique-space"]);
   assert.deepEqual(byName["Cozy Only"], ["cozy-quiet"]);
   assert.deepEqual(near.matchedAspectIds, [], "input cafés are not modified");
 });
@@ -77,7 +77,7 @@ test("merge: 'good coffee' also counts a café rated 4.5+ by 100+ people, but on
 });
 
 test("fit score: more matched aspects always beats a better coffee score", () => {
-  const selected = ["cozy-quiet", "coffee-flight"];
+  const selected = ["cozy-quiet", "unique-space"];
   const twoMatches = cafeAt("Two", 0, 0, { matchedAspectIds: selected, primaryType: "cafe", rating: 4.0 });
   const oneMatchGreatCoffee = cafeAt("One Espresso Roasters", 0, 0, { matchedAspectIds: ["cozy-quiet"], rating: 5.0 });
   const noMatch = cafeAt("None", 0, 0, { matchedAspectIds: ["work-friendly"] }); // matched something not chosen
@@ -88,13 +88,13 @@ test("fit score: more matched aspects always beats a better coffee score", () =>
 
 test("match summary lists matched and unmatched chosen aspects by label", () => {
   const cafe = cafeAt("x", 0, 0, { matchedAspectIds: ["cozy-quiet"] });
-  assert.deepEqual(matchSummary(cafe, ["coffee-flight", "cozy-quiet"]), { matchedLabels: ["Cozy & quiet"], unmatchedLabels: ["Coffee flight"] });
+  assert.deepEqual(matchSummary(cafe, ["unique-space", "cozy-quiet"]), { matchedLabels: ["Cozy & quiet"], unmatchedLabels: ["Unique space"] });
   assert.deepEqual(matchSummary(cafe, []), { matchedLabels: [], unmatchedLabels: [] });
 });
 
 test("aspects no stop matched are reported", () => {
   const stops = [cafeAt("a", 0, 0, { matchedAspectIds: ["cozy-quiet"] }), cafeAt("b", 0, 0)];
-  assert.deepEqual(aspectLabelsNoStopMatched(stops, ["cozy-quiet", "coffee-flight"]), ["Coffee flight"]);
+  assert.deepEqual(aspectLabelsNoStopMatched(stops, ["cozy-quiet", "unique-space"]), ["Unique space"]);
   assert.deepEqual(aspectLabelsNoStopMatched(stops, ["cozy-quiet"]), []);
 });
 
@@ -108,8 +108,8 @@ test("ranking prefers cafés that match, within the stop range", () => {
 
 test("ranking respects the walking time: a great match that is too far is left out", () => {
   const close = ["C1", "C2", "C3"].map((name, index) => cafeAt(name, 100, 80 * index));
-  const farMatch = cafeAt("Far Match", 1500, 0, { matchedAspectIds: ["coffee-flight"] });
-  const options = rankWalkOptions({ start: START, cafes: [...close, farMatch], selectedAspectIds: ["coffee-flight"], stopRange: STOP_RANGES["2-3"], maxWalkMinutes: 15 });
+  const farMatch = cafeAt("Far Match", 1500, 0, { matchedAspectIds: ["unique-space"] });
+  const options = rankWalkOptions({ start: START, cafes: [...close, farMatch], selectedAspectIds: ["unique-space"], stopRange: STOP_RANGES["2-3"], maxWalkMinutes: 15 });
   assert.ok(!names(options[0].stops).includes("Far Match"));
   assert.ok(options[0].estimatedWalkSeconds <= 15 * 60);
   assert.ok(options.every((option, index) => index === 0 || !option.fitsTimeLimit || option.fitScore <= options[index - 1].fitScore || !options[index - 1].fitsTimeLimit));
@@ -166,7 +166,7 @@ test("one café per name: the best-ranked branch is kept, the rest dropped", () 
 });
 
 test("ranking never puts two branches of the same café in one walk (the real '787 Coffee ×3' case)", () => {
-  const matchesAll = { matchedAspectIds: ["good-coffee", "coffee-flight"], rating: 4.9, ratingCount: 4000 };
+  const matchesAll = { matchedAspectIds: ["good-coffee", "unique-space"], rating: 4.9, ratingCount: 4000 };
   const cafes = [
     { ...cafeAt("787 Coffee", 300, 0, matchesAll), placeId: "787-a" },
     { ...cafeAt("787 Coffee", 100, 200, matchesAll), placeId: "787-b" }, // the nearest branch
@@ -175,7 +175,7 @@ test("ranking never puts two branches of the same café in one walk (the real '7
     cafeAt("Plain One", 150, 100),
     cafeAt("Plain Two", 200, 150),
   ];
-  const options = rankWalkOptions({ start: START, cafes, selectedAspectIds: ["good-coffee", "coffee-flight"], stopRange: STOP_RANGES["3-4"], maxWalkMinutes: 60 });
+  const options = rankWalkOptions({ start: START, cafes, selectedAspectIds: ["good-coffee", "unique-space"], stopRange: STOP_RANGES["3-4"], maxWalkMinutes: 60 });
   for (const option of options) {
     const stopNames = option.stops.map((stop) => stop.name);
     assert.equal(new Set(stopNames).size, stopNames.length, stopNames.join(", "));

@@ -89,7 +89,7 @@ const fakeGoogleScript = `
       if ((window.__failTextQueries || []).some(q => req.textQuery.includes(q))) throw new Error("PERMISSION_DENIED: text search not enabled");
       const farPlace = { ...places[0], id: "far", displayName: "Far Away Roasters", location: { lat: () => places[0].lat + 0.05, lng: () => places[0].lng } };
       // "cozy" also returns a bagel shop and a café 5 km away: both must be filtered out by the app.
-      const picked = req.textQuery.includes("cozy") ? [places[0], places[1], places[8], farPlace] : req.textQuery.includes("flight") ? [places[4]] : [];
+      const picked = req.textQuery.includes("cozy") ? [places[0], places[1], places[8], farPlace] : req.textQuery.includes("work from") ? [places[4]] : [];
       return { places: picked };
     }, searchNearby: async (req) => {
       window.__searchRequests = (window.__searchRequests || []).concat([req]);
@@ -316,10 +316,10 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
   {
     const { page, context, errors } = await openPage(browser);
     const chips = await page.$$eval("#aspect-chips .chip span", (els) => els.map((e) => e.textContent));
-    check("7 preference chips from the ASPECTS list", chips.length === 7 && !chips.includes("Good conversation") && chips.includes("Coffee flight") && chips.includes("Cozy & quiet"), chips.join(", "));
+    check("6 preference chips from the ASPECTS list", chips.length === 6 && !chips.includes("Good conversation") && !chips.includes("Coffee flight") && chips.includes("Work-friendly") && chips.includes("Cozy & quiet"), chips.join(", "));
     check("walk-length and stop-range chips, with defaults", await page.evaluate(() => document.querySelectorAll('input[name="walk-minutes"]').length === 4 && document.querySelectorAll('input[name="stop-range"]').length === 3 && document.querySelector('input[name="walk-minutes"]:checked').value === "30" && document.querySelector('input[name="stop-range"]:checked').value === "3-4"));
     const pick = (label) => page.click(`#aspect-chips .chip:has-text("${label}")`);
-    await pick("Cozy & quiet"); await pick("Coffee flight");
+    await pick("Cozy & quiet"); await pick("Work-friendly");
     check("chosen preference chips look selected", (await page.evaluate(() => [...document.querySelectorAll('input[name="aspect"]:checked + span')].filter(e => getComputedStyle(e).backgroundColor === "rgb(111, 78, 55)").length)) === 2);
     // At most two preferences.
     const aspectState = () => page.evaluate(() => { const boxes = [...document.querySelectorAll('input[name="aspect"]')]; return { checked: boxes.filter(b => b.checked).length, disabled: boxes.filter(b => b.disabled).length, total: boxes.length }; });
@@ -328,10 +328,10 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     await page.click('#aspect-chips .chip:has-text("Lively & buzzy")', { force: true }).catch(() => {});
     check("a third preference can't be chosen", (await aspectState()).checked === 2);
     check("switched-off chips look faded", (await page.evaluate(() => getComputedStyle(document.querySelector('input[name="aspect"]:disabled + span')).opacity)) === "0.4");
-    await pick("Coffee flight");
+    await pick("Work-friendly");
     aspects = await aspectState();
     check("unticking one switches the others back on", aspects.checked === 1 && aspects.disabled === 0, JSON.stringify(aspects));
-    await pick("Coffee flight");
+    await pick("Work-friendly");
     check("the hint says how many can be chosen", (await page.textContent("#aspects-label")).includes("up to 2"));
     await startWalk(page);
     const textRequests = await page.evaluate(() => window.__textRequests.map(r => ({ q: r.textQuery, radius: r.locationBias.radius, max: r.maxResultCount })));
@@ -340,10 +340,10 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     check("matching cafés are chosen first", ["Café 0", "Café 1", "Café 4"].every(n => names.includes(n)) && names.length === 4, names.join(" | "));
     check("bagel shop and far-away café from text search are not stops", !names.includes("Hudson Bagels") && !names.includes("Far Away Roasters"));
     const cardOf = (name) => page.evaluate((n) => [...document.querySelectorAll(".stop")].find(c => c.querySelector(".stop-name").textContent === n).textContent, name);
-    check("card shows what it matched", (await cardOf("Café 0")).includes("Cozy & quiet") && !(await cardOf("Café 0")).includes("Coffee flight") && (await cardOf("Café 4")).includes("Coffee flight"));
+    check("card shows what it matched", (await cardOf("Café 0")).includes("Cozy & quiet") && !(await cardOf("Café 0")).includes("Work-friendly") && (await cardOf("Café 4")).includes("Work-friendly"));
     await page.click(`.stop >> nth=${names.indexOf("Café 4")}`);
     const matches = await page.textContent(".detail-matches");
-    check("detail explains matches and misses", matches.includes("Matches what you asked for") && matches.includes("Coffee flight") && matches.includes("No sign of") && matches.includes("Cozy & quiet") && matches.includes("treat it as a hint"), matches);
+    check("detail explains matches and misses", matches.includes("Matches what you asked for") && matches.includes("Work-friendly") && matches.includes("No sign of") && matches.includes("Cozy & quiet") && matches.includes("treat it as a hint"), matches);
     await page.click(".close-button");
     // New route steps through ranked options without searching again.
     const before = names.slice().sort().join("|");
@@ -357,7 +357,7 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     await page.click("#start-over-button");
     check("change preferences → setup view with choices kept", (await view(page)) === "setup" && (await page.$$('input[name="aspect"]:checked')).length === 2);
     // Swap one choice for a preference the fake finds nothing for.
-    await pick("Coffee flight"); await pick("Lively & buzzy");
+    await pick("Work-friendly"); await pick("Lively & buzzy");
     // 15 minutes: the fake route takes ~23 min for 4 stops, so the app must say it's over.
     await page.check('input[name="walk-minutes"][value="15"]');
     await startWalk(page);
@@ -370,11 +370,11 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
   }
   // ---- One preference search refused: the walk still works ----
   {
-    const { page, context, errors } = await openPage(browser, { init: () => { window.__failTextQueries = ["flight"]; } });
-    await page.click('#aspect-chips .chip:has-text("Coffee flight")'); await page.click('#aspect-chips .chip:has-text("Cozy & quiet")');
+    const { page, context, errors } = await openPage(browser, { init: () => { window.__failTextQueries = ["work from"]; } });
+    await page.click('#aspect-chips .chip:has-text("Work-friendly")'); await page.click('#aspect-chips .chip:has-text("Cozy & quiet")');
     await startWalk(page);
     const status = await page.textContent("#status-message");
-    check("failed preference search is named with Google's reason", status.includes('Couldn\'t check "Coffee flight"') && status.includes("PERMISSION_DENIED"), status);
+    check("failed preference search is named with Google's reason", status.includes('Couldn\'t check "Work-friendly"') && status.includes("PERMISSION_DENIED"), status);
     check("walk still built from the other preference", (await page.$$(".stop-name")).length >= 3 && (await page.textContent(".stop-list")).includes("Cozy & quiet") && errors.length === 0);
     await context.close();
   }
