@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "test:browser": "node tests/browser/check.cjs"
+    "test:browser": "node tests/browser/check.cjs",
+    "test:database": "bash supabase/tests/run.sh"
   }
 }
