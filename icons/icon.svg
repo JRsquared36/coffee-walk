@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Coffee Walk app icon: a cup of coffee seen from above, in the app's colours (css/tokens.css).
+       The PNG files in this folder are rendered from this file; edit here and re-render them.
+       Everything sits inside the middle 60% so phones can crop the corners into any shape. -->
+  <rect width="512" height="512" fill="#6f4e37"/>                      <!-- coffee-600 -->
+  <circle cx="256" cy="256" r="150" fill="#f6e6d3"/>                    <!-- saucer: caramel-100 -->
+  <rect x="330" y="232" width="92" height="48" rx="24" fill="#fbf7f2"/> <!-- handle: cream-50 -->
+  <circle cx="256" cy="256" r="110" fill="#fbf7f2"/>                    <!-- cup rim: cream-50 -->
+  <circle cx="256" cy="256" r="88" fill="#4b3324"/>                     <!-- coffee: espresso-700 -->
+  <path d="M 206 232 A 56 56 0 0 1 280 202" fill="none" stroke="#d69a5c" stroke-width="14" stroke-linecap="round"/> <!-- crema highlight: caramel-400 -->
+</svg>
