@@ -6,7 +6,10 @@
 //      says coffee ("Sunrise Bagels & Coffee"). Only places Google calls a coffee_shop escape this.
 //   3. Chains are excluded.
 //   4. Quality floor: 4.0★ or better with at least 20 reviews.
+//   5. Closed right now: left off. A café whose hours Google doesn't know is kept.
 //   Survivors are scored for coffee focus and rating; walk-preferences.js uses that score to break ties.
+
+import { isCafeOpenAt } from "./cafe-details.js";
 
 // What we ask Google for. Bakery is included only so rule 1's exception can apply.
 export const SEARCH_PRIMARY_TYPES = ["coffee_shop", "cafe", "bakery"];
@@ -46,7 +49,8 @@ export function isChain(name) {
 }
 
 // Returns null if the café qualifies, otherwise a short reason (used to explain empty results).
-export function reasonCafeIsExcluded(cafe) {
+// `date` is the moment the walk is being planned; it decides "closed now".
+export function reasonCafeIsExcluded(cafe, date = new Date()) {
   const hasCoffeeName = nameHasAnyWord(cafe.name, COFFEE_WORDS);
   if (isChain(cafe.name)) return "chain";
   // primaryType is null when Google refused the detailed fields; we can't judge type, so don't exclude on it.
@@ -62,6 +66,9 @@ export function reasonCafeIsExcluded(cafe) {
   if (cafe.rating != null && (cafe.rating < MINIMUM_RATING || (cafe.ratingCount ?? 0) < MINIMUM_REVIEW_COUNT)) {
     return "below quality floor";
   }
+  // Checked last, so a place that would never qualify is counted under its lasting reason, not "closed".
+  // Only a definite "closed" excludes: null means Google has no hours, and those cafés stay in.
+  if (isCafeOpenAt(cafe, date) === false) return "closed now";
   return null;
 }
 
@@ -76,11 +83,11 @@ export function coffeeFirstScore(cafe) {
 }
 
 // Splits search results into qualifying cafés (best first) and counts of why the rest were dropped.
-export function selectCoffeeFirstCafes(cafes) {
+export function selectCoffeeFirstCafes(cafes, date = new Date()) {
   const qualifyingCafes = [];
   const excludedCountsByReason = {};
   for (const cafe of cafes) {
-    const reason = reasonCafeIsExcluded(cafe);
+    const reason = reasonCafeIsExcluded(cafe, date);
     if (reason) excludedCountsByReason[reason] = (excludedCountsByReason[reason] ?? 0) + 1;
     else qualifyingCafes.push(cafe);
   }

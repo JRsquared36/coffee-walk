@@ -46,7 +46,7 @@ const CAFE_UTC_OFFSET_MINUTES = -300; // New York in winter
 const cafeDayNow = new Date(Date.now() + CAFE_UTC_OFFSET_MINUTES * 60_000).getUTCDay();
 const ALWAYS_OPEN_PERIOD = { open: { day: 0, hour: 0, minute: 0 } };
 const CLOSED_NOW_PERIOD = { open: { day: (cafeDayNow + 3) % 7, hour: 3, minute: 0 }, close: { day: (cafeDayNow + 3) % 7, hour: 3, minute: 1 } };
-const CAFES = Array.from({ length: 9 }, (_, i) => ({
+const CAFES = Array.from({ length: 10 }, (_, i) => ({
   id: `place-${i}`,
   displayName: i === 2 ? `<img src=x onerror="window.__xss=1">Evil Café` : i === 7 ? "Starbucks" : i === 8 ? "Hudson Bagels" : `Café ${i}`,
   primaryType: i === 8 ? "cafe" : "coffee_shop",
@@ -58,8 +58,8 @@ const CAFES = Array.from({ length: 9 }, (_, i) => ({
   businessStatus: i === 6 ? "CLOSED_PERMANENTLY" : "OPERATIONAL",
   formattedAddress: `${100 + i} Main St, New York, NY`,
   priceLevel: "MODERATE",
-  // Café 3 has no hours at all; Café 5 is closed right now; the rest never close.
-  regularOpeningHours: i === 3 ? null : { weekdayDescriptions: WEEK, periods: i === 5 ? [CLOSED_NOW_PERIOD] : [ALWAYS_OPEN_PERIOD] },
+  // Café 3 has no hours at all; Café 9 (the best rated, so it would be picked first) is closed right now; the rest never close.
+  regularOpeningHours: i === 3 ? null : { weekdayDescriptions: WEEK, periods: i === 9 ? [CLOSED_NOW_PERIOD] : [ALWAYS_OPEN_PERIOD] },
   utcOffsetMinutes: CAFE_UTC_OFFSET_MINUTES,
   websiteURI: `https://cafe${i}.example`,
   googleMapsURI: `https://maps.google.com/?cid=${i}`,
@@ -168,8 +168,9 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     const cardOfCafe = (name) => page.evaluate((n) => [...document.querySelectorAll(".stop")].find(c => c.querySelector(".stop-name").textContent === n)?.textContent ?? "(not a stop)", name);
     const cardText = await page.evaluate(() => [...document.querySelectorAll(".stop")].find(c => !/Café [35]/.test(c.textContent)).textContent);
     check("card shows rating, price, badges, hours, leg", ["★", "$$", "Coffee shop", "Open now", "Today", "from"].every(t => cardText.includes(t)), cardText);
-    const closedCard = await cardOfCafe("Café 5");
-    check("a café outside its opening hours shows Closed now", closedCard.includes("Closed now") && !closedCard.includes("Open now"), closedCard);
+    check("a café that is closed right now is left off the walk", !names.includes("Café 9") && (await cardOfCafe("Café 9")) === "(not a stop)", names.join(" | "));
+    check("the walk says a closed café was left out", (await page.textContent("#status-message")).includes("Left out 1 coffee shop nearby that is closed right now"), await page.textContent("#status-message"));
+    check("no stop shows Closed now", !(await page.textContent(".stop-list")).includes("Closed now"));
     const noHoursCard = await cardOfCafe("Café 3");
     check("a café with no hours shows neither Open nor Closed", !noHoursCard.includes("Open now") && !noHoursCard.includes("Closed now"), noHoursCard);
 
