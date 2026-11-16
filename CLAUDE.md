@@ -1,21 +1,37 @@
 # Coffee Walk
 
-A web app that builds a walking tour through nearby cafés. You pick what you want from the cafés
-(and soon: vibes, coffee flight, walking time, number of stops), it finds you, picks matching cafés,
-orders them into a loop, and draws the walking route. You can check in at each stop to rate it.
+A phone-first web app that builds a walking tour through nearby coffee shops. You pick up to two
+things you're in the mood for, how long you want to walk and how many stops; it finds you, picks the
+coffee shops that fit best, orders them into a loop, and draws the walking route. Each stop shows
+which of your choices it matched, and you can check in at a stop to rate it.
 
 Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 
-## Roadmap (build in this order, one PR each)
-1. v1 (done): random cafés nearby, shortest loop, walking route, per-leg times, personal coffee log.
-2. Café details (done): map pin popups and stop cards with rating, price, open now, hours.
-3. Coffee-first selection (done): primary types, no chains, 4.0★ / 20-review floor.
-4. Design system: tokens and components from Figma, then the mobile bottom-sheet layout.
-5. Preferences: aspects (good coffee, coffee flight, unique space, outdoor seating, good conversation,
-   cozy/quiet, lively/buzzy, work-friendly), max walking time, stop range (2–3, 3–4, 5–6). Matching uses
-   one Google text search per aspect; each stop shows why it was picked and what it didn't match.
-   If nothing fits fully, fill with the best partial matches and label them.
-6. Later (needs a backend, so discuss first): shared Letterboxd-style reviews with accounts.
+## What exists now
+- **Setup:** up to two preferences (Good coffee, Unique space, Outdoor seating, Cozy & quiet,
+  Lively & buzzy, Work-friendly), walk length (15/30/45/60 min) and stop range (2–3, 3–4, 5–6).
+- **Finding cafés:** one Google Nearby Search, plus one Text Search per chosen preference. The rules
+  for what counts as a stop are listed at the top of `js/cafe-selection.js`.
+- **Matching:** a café matches a preference if it is among the first five qualifying results of
+  that preference's search (`MATCHES_PER_PREFERENCE` in `js/walk-preferences.js`). It is a hint, and
+  the app says so.
+- **Choosing the walk:** every group of stops in the range is tried. Walks within the chosen time
+  come first, then walks up to 5 minutes over; within each, best fit, then more stops, then shorter.
+  One café per name. "New route" steps through the five best without searching again.
+- **On the map:** numbered pins, a walking route from Google's Routes API (straight lines if that
+  fails), a café view when a pin or card is tapped.
+- **Check-in:** only within about 75 m of the café; rating and note saved in this browser.
+
+## Roadmap
+Done: v1, café details, coffee-first selection, design system and phone layout, preferences, and a
+first round of fixes from testing against real Google.
+
+Ideas not yet built, in no fixed order. Ask the owner which is next:
+- Leave off cafés that will have closed by the time the walk reaches them.
+- Remember the chosen preferences between visits.
+- Bring the Figma file back in line with the app (preferences screen, café view with match badges).
+- A designed wide-screen layout.
+- Shared Letterboxd-style reviews with accounts. Needs a backend, so discuss first.
 
 ## Working with the owner
 - The owner is learning to build software. Explain every change in plain language: what, why, and
@@ -75,9 +91,23 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 ## Testing
 - Run `npm test` before every PR. New pure logic gets unit tests.
 - Browser checks live in `tests/browser/check.cjs` (`npm run test:browser`). Run them before every PR
-  that touches the page, and extend them with the feature. They use a fake Google Maps. Before relying on one, check the fake's shape against Google's
-  docs (lesson: `LatLngBounds` lives in `importLibrary("core")`, not `"maps"`. The fake copied the
-  same mistake, so tests passed while the live site crashed).
+  that touches the page, and extend them with the feature. They use a fake Google Maps.
+- **The fake only proves the code does what you assumed Google does.** Five bugs passed every check
+  and broke the live site because the fake copied a wrong assumption:
+  - `LatLngBounds` lives in `importLibrary("core")`, not `"maps"`.
+  - Google sets `position: relative` on the map element, overriding our CSS.
+  - `Place.isOpen()` exists only in Google's beta channel; this app loads the regular one.
+  - The route was zoomed to while the sheet still covered the map.
+  - Google's logo sits on the map's bottom edge, where the sheet used to overlap it.
+  So: read Google's reference before using an API for the first time, make the fake behave like
+  the real thing, and confirm a new check fails on the old code.
+- **Test against real Google before saying something works.** The `coffee-walk` cloud environment
+  allows Google's hosts and the live site. The key only works from the live address, so load
+  `https://jrsquared36.github.io/coffee-walk/` in headless Chromium (through `HTTPS_PROXY`) and use
+  Playwright's `page.route` to serve the page's own files from the working tree, leaving
+  `js/config.js` to come from the live site. Never copy the key into the repo.
+  Real requests are billed: keep runs small and tell the owner roughly how many were made.
+- Say in every PR what was checked on real Google and what was only checked against the fake.
 
 ## Google Maps Platform: cost and security
 - APIs used: Maps JavaScript API, Places API (New), Routes API. The key is billed.
@@ -86,8 +116,11 @@ Live: https://jrsquared36.github.io/coffee-walk/ · Owner: @JRsquared36
 - The `fields` list in each Places request sets the price. Request only what's displayed, and say
   so in the PR when adding a field from a pricier tier.
 - Reuse search results (e.g. "New route" doesn't search again) instead of calling Google repeatedly.
-- Each Start costs one Nearby Search plus one Text Search per chosen preference (up to 9 requests).
-  Adding a preference adds a request per walk; say so in the PR.
+- Each Start costs one Nearby Search, one Text Search per chosen preference (at most two), and one
+  Routes request: at most four. "New route" costs one Routes request. Say so in the PR if a change
+  adds requests or fields.
+- The key's allowed websites cover the live address only. `http://localhost:8000` is refused unless
+  the owner adds it in Google Cloud.
 - Google's terms: place IDs may be stored indefinitely; other Places data (names, ratings, hours) must
   not be stored long-term. Anything persisted (now the coffee log; later a shared database) should key
   on place ID and re-fetch details.
