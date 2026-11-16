@@ -262,7 +262,7 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     const phoneMapOptions = await page.evaluate(() => window.__mapOptions);
     check("phone: no map buttons at all (pinch to zoom)", phoneMapOptions.disableDefaultUI === true && phoneMapOptions.zoomControl === false, JSON.stringify(phoneMapOptions));
     let map = await mapRect();
-    check("map fills the space above the sheet", map.top === 0 && map.width === 390 && map.bottom === 844 - 788 + 24, JSON.stringify(map));
+    check("map fills the space above the sheet", map.top === 0 && map.width === 390 && map.bottom === 844 - 788, JSON.stringify(map));
     check("all three preference groups visible without scrolling", await page.evaluate(() => [...document.querySelectorAll(".view--setup .preference")].every(e => { const r = e.getBoundingClientRect(); return r.top > 0 && r.bottom < 844; })));
     check("sheet is pinned to the bottom", await page.evaluate(() => Math.round(document.querySelector("#panel").getBoundingClientRect().bottom) === 844));
     check("page itself doesn't scroll", await page.evaluate(() => document.documentElement.scrollHeight <= window.innerHeight && document.documentElement.scrollWidth <= window.innerWidth));
@@ -292,7 +292,19 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     await page.mouse.move(handle.x, handle.y + 300, { steps: 5 }); await page.mouse.up(); await settle();
     check("drag down settles at peek", (await sheetHeight()) === 132, String(await sheetHeight()));
     map = await mapRect();
-    check("map grows when the sheet shrinks", map.bottom === 844 - 132 + 24, JSON.stringify(map));
+    check("map grows when the sheet shrinks", map.bottom === 844 - 132, JSON.stringify(map));
+    // Google draws its logo along the bottom edge of the map (26px tall on the real map). Stand one in
+    // and make sure the sheet never covers it, at any height.
+    await page.evaluate(() => { const logo = document.createElement("div"); logo.id = "stand-in-google-logo"; logo.style.cssText = "position:absolute;left:5px;bottom:0;width:66px;height:26px;"; document.querySelector("#map").append(logo); });
+    const logoIsClear = () => page.evaluate(() => document.querySelector("#stand-in-google-logo").getBoundingClientRect().bottom <= document.querySelector("#panel").getBoundingClientRect().top);
+    const logoClearAtPeek = await logoIsClear();
+    await page.click("#sheet-handle"); await settle();
+    const logoClearAtHalf = await logoIsClear();
+    await page.click("#sheet-handle"); await settle();
+    const logoClearAtFull = await logoIsClear();
+    check("Google's logo is never under the sheet (peek, half, full)", logoClearAtPeek && logoClearAtHalf && logoClearAtFull, JSON.stringify({ logoClearAtPeek, logoClearAtHalf, logoClearAtFull }));
+    await page.click("#sheet-handle"); await settle(); // full → half
+    await page.mouse.move(handle.x, handle.y); await page.mouse.down(); await page.mouse.move(handle.x, handle.y + 300, { steps: 4 }); await page.mouse.up(); await settle(); // back to peek
     await page.screenshot({ path: `${SCRATCH}/sheet-phone-3-peek.png` });
     // Keyboard
     await page.focus("#sheet-handle"); await page.keyboard.press("Enter"); await settle();

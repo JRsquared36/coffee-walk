@@ -50,7 +50,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 799px) {
   body { overflow: hidden; }   /* the sheet scrolls, the page doesn't */
   .layout { display: block; height: auto; }
-  /* The map stops where the sheet starts (js/bottom-sheet.js sets --map-bottom), so Google's logo stays visible. */
+  /* The map stops exactly where the sheet starts (js/bottom-sheet.js sets --map-bottom), so Google's
+     logo along the map's bottom edge stays visible. Don't let the map run under the sheet. */
   .map-area { position: fixed; inset: 0 0 var(--map-bottom, 50dvh) 0; height: auto; }
   .panel {
     position: fixed; left: 0; right: 0; bottom: 0;

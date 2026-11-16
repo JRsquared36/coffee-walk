@@ -6,8 +6,6 @@ import { sheetSnapHeights, clampSheetHeight, nearestSnapName, nextSnapNameOnTap 
 
 export const PHONE_LAYOUT_QUERY = "(max-width: 799px)"; // keep in step with the media query in css/style.css
 const TAP_MOVEMENT_LIMIT_PX = 6; // less finger movement than this is a tap, not a drag
-// The sheet's rounded top corners overlap the map by this much, so no page background shows through.
-const SHEET_OVERLAP_ON_MAP_PX = 24;
 
 export function createBottomSheet({ sheetElement, handleElement }) {
   const phoneLayout = window.matchMedia(PHONE_LAYOUT_QUERY);
@@ -21,11 +19,12 @@ export function createBottomSheet({ sheetElement, handleElement }) {
     sheetElement.style.setProperty("--sheet-height", `${heightPx}px`);
   }
 
-  // The map ends where the sheet begins, so Google's logo and controls are never hidden under it.
+  // The map ends exactly where the sheet begins. Google's logo and legal links sit along the map's
+  // bottom edge and its terms require them to stay visible, so the map must not run under the sheet
+  // at all (it used to, by 24px, to fill in behind the sheet's rounded corners, and that hid the logo).
   // Done only when the sheet comes to rest: resizing the map on every drag frame would stutter.
   function resizeMapAboveSheet(heightPx) {
-    const mapBottomPx = Math.max(0, heightPx - SHEET_OVERLAP_ON_MAP_PX);
-    document.documentElement.style.setProperty("--map-bottom", `${mapBottomPx}px`);
+    document.documentElement.style.setProperty("--map-bottom", `${heightPx}px`);
   }
 
   function setSnap(snapName) {
