@@ -584,7 +584,7 @@ function createMatchExplanation(stop) {
     explanation.append(createElement("p", "label", matchedLabels.length > 0 ? "No sign of" : "No sign of what you asked for"));
     explanation.append(createBadgeRow(unmatchedLabels.map((label) => ({ label, tone: "neutral" }))));
   }
-  explanation.append(createElement("p", "caption", "Based on Google search results, so treat it as a hint."));
+  explanation.append(createElement("p", "caption", "Among Google's top 5 nearby for each, so treat it as a hint."));
   return explanation;
 }
 

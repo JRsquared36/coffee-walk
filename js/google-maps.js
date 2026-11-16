@@ -1,6 +1,6 @@
 // Everything that talks to Google lives here, so swapping providers later touches one file.
 
-import { parseGoogleDurationSeconds } from "./route-planning.js";
+import { parseGoogleDurationSeconds, boundingBoxAround } from "./route-planning.js";
 import { SEARCH_PRIMARY_TYPES } from "./cafe-selection.js";
 
 // Loads the Maps JavaScript API once. Resolves when `google.maps.importLibrary` is ready.
@@ -74,16 +74,23 @@ export async function searchNearbyCafes(center, radiusMeters) {
   return openPlaces.map(toCafe);
 }
 
-// Cafés Google's text search returns for a phrase like "cozy quiet coffee shop" near `center`.
-// Used to guess which cafés fit a preference: Google has no "cozy" field, but its search reads
-// reviews and descriptions. The area is a hint to Google, not a hard limit, so the caller drops
-// results that are too far away. Throws with Google's reason if the search is refused.
+// Coffee shops Google's text search returns for a phrase like "cozy quiet coffee shop", best match
+// first, inside the box around `center`. Used to guess which cafés fit a preference: Google has no
+// "cozy" field, but its search reads reviews and descriptions.
+// Two settings matter (both checked against real Google):
+//   - locationRestriction: only places inside the walking area. With a mere "bias" towards the area,
+//     about 8 of every 20 results were too far to walk to.
+//   - includedType + strict filtering: coffee shops only. Without it, some phrases ("lively coffee
+//     shop") returned bars and restaurants instead.
+// Throws with Google's reason if the search is refused.
 export async function searchCafesByText(center, radiusMeters, textQuery) {
   const { Place } = await google.maps.importLibrary("places");
   const { places } = await Place.searchByText({
     textQuery,
     fields: DETAILED_PLACE_FIELDS,
-    locationBias: { center, radius: radiusMeters },
+    locationRestriction: boundingBoxAround(center, radiusMeters),
+    includedType: "coffee_shop",
+    useStrictTypeFiltering: true,
     maxResultCount: 20,
   });
   const openPlaces = places.filter((place) => place.businessStatus == null || place.businessStatus === "OPERATIONAL");

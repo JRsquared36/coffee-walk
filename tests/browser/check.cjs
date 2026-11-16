@@ -350,8 +350,11 @@ const mapClick = (page) => page.evaluate(([lat, lng]) => window.__mapClick({ lat
     await pick("Work-friendly");
     check("the hint says how many can be chosen", (await page.textContent("#aspects-label")).includes("up to 2"));
     await startWalk(page);
-    const textRequests = await page.evaluate(() => window.__textRequests.map(r => ({ q: r.textQuery, radius: r.locationBias.radius, max: r.maxResultCount })));
-    check("one text search per chosen preference, near the start", textRequests.length === 2 && textRequests.every(r => r.radius === 810 && r.max === 20), JSON.stringify(textRequests));
+    const textRequests = await page.evaluate(() => window.__textRequests.map(r => ({ q: r.textQuery, box: r.locationRestriction, bias: r.locationBias, type: r.includedType, strict: r.useStrictTypeFiltering, max: r.maxResultCount })));
+    // The search box for a 30 min walk: 810 m either side of the start, so about 1620 m (0.0146° of latitude) tall.
+    const boxIsWalkingArea = (box) => !!box && Math.abs((box.north - box.south) - 0.01457) < 0.0002 && box.north > 40.7128 && box.south < 40.7128 && box.east > -74.006 && box.west < -74.006;
+    check("one text search per chosen preference, near the start", textRequests.length === 2 && textRequests.every(r => r.max === 20), JSON.stringify(textRequests));
+    check("text searches are limited to the walking area and to coffee shops", textRequests.every(r => boxIsWalkingArea(r.box) && r.bias === undefined && r.type === "coffee_shop" && r.strict === true), JSON.stringify(textRequests));
     const names = await page.$$eval(".stop-name", (els) => els.map((e) => e.textContent));
     check("matching cafés are chosen first", ["Café 0", "Café 1", "Café 4"].every(n => names.includes(n)) && names.length === 4, names.join(" | "));
     check("bagel shop and far-away café from text search are not stops", !names.includes("Hudson Bagels") && !names.includes("Far Away Roasters"));

@@ -20,6 +20,22 @@ export function haversineDistanceMeters(pointA, pointB) {
   return 2 * EARTH_RADIUS_METERS * Math.asin(Math.sqrt(a));
 }
 
+// The smallest north-up rectangle that contains a circle of `radiusMeters` around `center`.
+// Google's text search can be limited to a rectangle but not to a circle, so we give it this box
+// and drop the few results in its corners that are beyond the radius.
+export function boundingBoxAround(center, radiusMeters) {
+  const metersPerDegreeOfLatitude = (EARTH_RADIUS_METERS * Math.PI) / 180;
+  const latitudeSpan = radiusMeters / metersPerDegreeOfLatitude;
+  // Lines of longitude get closer together away from the equator, so a degree of longitude is shorter.
+  const longitudeSpan = radiusMeters / (metersPerDegreeOfLatitude * Math.cos((center.lat * Math.PI) / 180));
+  return {
+    north: center.lat + latitudeSpan,
+    south: center.lat - latitudeSpan,
+    east: center.lng + longitudeSpan,
+    west: center.lng - longitudeSpan,
+  };
+}
+
 // Length of start → stop1 → … → stopN → start, using straight-line distances.
 export function loopLengthMeters(start, orderedStops) {
   const path = [start, ...orderedStops.map((stop) => stop.location), start];
